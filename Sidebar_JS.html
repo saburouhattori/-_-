@@ -1,0 +1,376 @@
+<script>
+let candidateDict = {};
+const FIELDS = ['name','furigana','nickname','birthday','gender','spouse','height','weight','address','birthplace','email','school','eduSchool','eduDept','eduStatus','eduStart','eduEnd','eduNote','expPeriod1','expContent1','expPeriod2','expContent2','expPeriod3','expContent3','jlptLevel','jlptDate','jftLevel','jftDate','kaigoSkill','kaigoSkillDate','kaigoLang','kaigoLangDate','otherJapanese','otherJapaneseDate','comment'];
+
+function showMsg(t) { document.getElementById('modal-text').innerText = t; document.getElementById('overlay').style.display = 'block'; }
+function closeModal() { document.getElementById('overlay').style.display = 'none'; }
+function toggleRelative() { document.getElementById('relativeDetail').style.display = (document.getElementById('relativeSelect').value === ' 有 ') ? 'block' : 'none'; }
+
+function formatCandId(val) {
+  let str = val.trim().toUpperCase();
+  if (!str) return "";
+  if (/^\d+$/.test(str)) return "SD-" + str.padStart(4, "0");
+  const match = str.match(/^SD-(\d+)$/);
+  if (match) return "SD-" + match[1].padStart(4, "0");
+  return str;
+}
+
+function applyFormat(elem) {
+  const formatted = formatCandId(elem.value);
+  if (formatted) elem.value = formatted;
+}
+
+function checkCandId(elem, displayId, isNextSibling) {
+  const formattedId = formatCandId(elem.value);
+  let nameStr = "";
+  
+  if (formattedId && candidateDict[formattedId]) {
+    nameStr = candidateDict[formattedId];
+  } else if (formattedId) {
+    nameStr = "該当なし";
+  }
+
+  let displayElem;
+  if (displayId) displayElem = document.getElementById(displayId);
+  else if (isNextSibling) displayElem = elem.nextElementSibling;
+
+  if (displayElem) {
+    displayElem.innerText = nameStr;
+    displayElem.style.color = (nameStr === "該当なし") ? "#d93025" : "#1a73e8";
+  }
+}
+
+function liveCheckDuplicate(val) {
+  const warning = document.getElementById('comp_warning');
+  if (val.length < 2) { warning.style.display = 'none'; return; }
+  google.script.run.withSuccessHandler(isDup => {
+    warning.style.display = isDup ? 'block' : 'none';
+  }).checkDuplicateCompanyName(val);
+}
+
+function submitCompany() {
+  const btn = document.getElementById('compBtn'); btn.disabled = true;
+  const d = {
+    name: document.getElementById('comp_name').value,
+    yomi: document.getElementById('comp_yomi').value,
+    address: document.getElementById('comp_address').value,
+    url: document.getElementById('comp_url').value,
+    note: document.getElementById('comp_note').value
+  };
+  google.script.run.withSuccessHandler(res => {
+    showMsg(res); btn.disabled = false;
+    if (res.indexOf('エラー') === -1) {
+      ['comp_name','comp_yomi','comp_address','comp_url','comp_note'].forEach(id => document.getElementById(id).value = '');
+      document.getElementById('comp_warning').style.display = 'none';
+    }
+  }).addCompanyRow(d);
+}
+
+function searchData() {
+  const searchInput = document.getElementById('searchId');
+  searchInput.value = formatCandId(searchInput.value);
+  const btn = document.getElementById('searchBtn');
+  if(btn) { btn.disabled = true; btn.innerText = '読込中...'; }
+
+  google.script.run
+    .withSuccessHandler(res => {
+      if(btn) { btn.disabled = false; btn.innerText = '読み込む'; }
+      if(!res) return alert('指定されたIDが見つかりません。');
+      
+      document.getElementById('targetRow').value = res.row;
+      FIELDS.forEach(f => { if(document.getElementById(f)) document.getElementById(f).value = res[f] || ''; });
+      
+      if(res.relative && res.relative !== "日本に家族や親戚はいません。") {
+        document.getElementById('relativeSelect').value = ' 有 ';
+        document.getElementById('relativeDetail').value = res.relative;
+        document.getElementById('relativeDetail').style.display = 'block';
+      } else {
+        document.getElementById('relativeSelect').value = ' 無 ';
+        document.getElementById('relativeDetail').style.display = 'none';
+      }
+    })
+    .withFailureHandler(err => {
+      if(btn) { btn.disabled = false; btn.innerText = '読み込む'; }
+      alert("システムエラーが発生しました: " + err.message);
+    })
+    .safeSearchByAdminId(searchInput.value);
+}
+
+function submitData() {
+  const btn = document.getElementById('mainBtn');
+  btn.disabled = true; btn.innerText = ' 処理中... ';
+
+  const d = { row: document.getElementById('targetRow').value };
+  FIELDS.forEach(f => { if(document.getElementById(f)) d[f] = document.getElementById(f).value; });
+
+  const relSelect = document.getElementById('relativeSelect');
+  const relDetail = document.getElementById('relativeDetail');
+  d.relative = (relSelect.value === ' 有 ') ? relDetail.value : " 日本に家族や親戚はいません。 ";
+
+  const fileInput = document.getElementById('imageFile');
+  const file = fileInput ? fileInput.files[0] : null;
+
+  const successHandler = (res) => {
+    showMsg(res);
+    btn.disabled = false;
+    btn.innerText = (MODE === 'NEW') ? ' 新規登録 ' : ' 更新 ';
+    
+    if (res.indexOf('エラー') === -1) {
+      FIELDS.forEach(f => { if(document.getElementById(f)) document.getElementById(f).value = ''; });
+      if (document.getElementById('relativeSelect')) document.getElementById('relativeSelect').value = ' 無 ';
+      if (document.getElementById('relativeDetail')) {
+        document.getElementById('relativeDetail').value = '';
+        document.getElementById('relativeDetail').style.display = 'none';
+      }
+      if (fileInput) document.getElementById('imageFile').value = '';
+      if (document.getElementById('searchId')) document.getElementById('searchId').value = '';
+      if (document.getElementById('searchNameDisplay')) document.getElementById('searchNameDisplay').innerText = '';
+      if (document.getElementById('targetRow')) document.getElementById('targetRow').value = '';
+    }
+  };
+
+  if (file) {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        let width = img.width;
+        let height = img.height;
+        const maxSide = 800 ; 
+
+        if (width > height) {
+          if (width > maxSide) { height *= maxSide / width; width = maxSide; }
+        } else {
+          if (height > maxSide) { width *= maxSide / height; height = maxSide; }
+        }
+
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, width, height);
+
+        const compressedBase64 = canvas.toDataURL('image/jpeg', 0.7);
+        d.imageFile = {
+          contents: compressedBase64.split(',')[1],
+          mimeType: 'image/jpeg'
+        };
+
+        if (MODE === 'NEW') google.script.run.withSuccessHandler(successHandler).addNewRow(d);
+        else google.script.run.withSuccessHandler(successHandler).updateRow(d);
+      };
+      img.src = e.target.result;
+    };
+    reader.readAsDataURL(file);
+  } else {
+    if (MODE === 'NEW') google.script.run.withSuccessHandler(successHandler).addNewRow(d);
+    else google.script.run.withSuccessHandler(successHandler).updateRow(d);
+  }
+}
+
+function addJobCandRow() {
+  const div = document.createElement('div');
+  div.className = 'sub-field';
+  div.innerHTML = '<input type="text" class="job-cand-id" placeholder="例: 1" oninput="checkCandId(this, null, true)" onblur="applyFormat(this)"><span class="cand-name-display"></span>';
+  document.getElementById('job_cand_list').appendChild(div);
+}
+
+function submitJob() { 
+  const comp = document.getElementById('job_company').value;
+  const idInputs = document.getElementsByClassName('job-cand-id');
+  const ids = [];
+  
+  for (let i = 0; i < idInputs.length; i++) {
+    const val = formatCandId(idInputs[i].value);
+    if (val !== '') ids.push(val);
+  }
+  
+  if (!comp) { alert("事業者名を入力してください。"); return; }
+  if (ids.length === 0) { alert("候補者の登録者IDを1つ以上入力してください。"); return; }
+
+  const btn = document.getElementById('jobBtn');
+  btn.disabled = true;
+  btn.innerText = '処理中...';
+
+  google.script.run.withSuccessHandler(function(res) {
+    showMsg(res);
+    btn.disabled = false;
+    btn.innerText = '登録';
+    if (res.indexOf('エラー') === -1) {
+      document.getElementById('job_company').value = '';
+      document.getElementById('job_cand_list').innerHTML = '<div class="sub-field"><input type="text" class="job-cand-id" placeholder="例: 1" oninput="checkCandId(this, null, true)" onblur="applyFormat(this)"><span class="cand-name-display"></span></div>';
+    }
+  }).addJobRow({
+    company: comp,
+    candidateIds: ids
+  });
+}
+
+function submitDelete() {
+  const idInput = document.getElementById('delete_id');
+  const id = formatCandId(idInput.value); 
+  idInput.value = id;
+  
+  if (!id) { alert(" 削除する登録者IDを入力してください。 "); return; }
+  if (!confirm(" 本当に登録者ID「 " + id + " 」を完全に削除しますか？\nこの操作は元に戻せません。 ")) return;
+  
+  google.script.run.withSuccessHandler(function(res) {
+    showMsg(res);
+    idInput.value = '';
+    document.getElementById('deleteNameDisplay').innerText = '';
+  }).deleteCandidate(id);
+}
+
+function fetchJobCandidates(type) {
+  const inputId = type === 'hire' ? 'hire_job_id' : 'list_job_id';
+  const listDivId = type === 'hire' ? 'hire_cand_list' : 'list_cand_list';
+  const chkClass = type === 'hire' ? 'hire-cand-chk' : 'list-cand-chk';
+  
+  const jobId = document.getElementById(inputId).value.trim();
+  if (!jobId) { alert("案件IDを入力してください。"); return; }
+  
+  const listDiv = document.getElementById(listDivId);
+  listDiv.innerHTML = '<div style="font-size: 12px; color: #888;">読込中...</div>';
+  
+  google.script.run.withSuccessHandler(function(res) {
+    listDiv.innerHTML = '';
+    if (res === null) {
+      listDiv.innerHTML = '<div style="font-size: 12px; color: #d93025;">案件が見つかりません</div>';
+    } else if (res.length === 0) {
+      listDiv.innerHTML = '<div style="font-size: 12px; color: #d93025;">候補者が登録されていません</div>';
+    } else {
+      res.forEach(function(c) {
+        const lbl = document.createElement('label');
+        lbl.style.display = 'flex';
+        lbl.style.alignItems = 'center';
+        lbl.style.fontWeight = 'normal';
+        lbl.style.marginBottom = '8px';
+        lbl.style.cursor = 'pointer';
+        
+        const chk = document.createElement('input');
+        chk.type = 'checkbox';
+        chk.className = chkClass;
+        chk.value = c.id;
+        chk.style.width = 'auto';
+        chk.style.marginRight = '8px';
+        if (type === 'list') chk.checked = true;
+        
+        lbl.appendChild(chk);
+        lbl.appendChild(document.createTextNode(c.display));
+        listDiv.appendChild(lbl);
+      });
+    }
+  }).getJobCandidates(jobId);
+}
+
+function submitHire() {
+  const jobId = document.getElementById('hire_job_id').value.trim();
+  const chks = document.getElementsByClassName('hire-cand-chk');
+  const candIds = [];
+  
+  for(let i = 0; i < chks.length; i++) {
+    if(chks[i].checked) candIds.push(chks[i].value);
+  }
+  
+  if (!jobId || candIds.length === 0) { 
+    alert("案件IDで検索後、採用された候補者を1人以上チェックしてください。"); 
+    return; 
+  }
+  
+  const btn = document.getElementById('hireBtn');
+  btn.disabled = true;
+  btn.innerText = '処理中...';
+  
+  google.script.run
+    .withSuccessHandler(function(res) {
+      showMsg(res);
+      btn.disabled = false;
+      btn.innerText = '採用登録を実行';
+      if(res.indexOf('エラー') === -1) {
+        document.getElementById('hire_job_id').value = '';
+        document.getElementById('hire_cand_list').innerHTML = '<div style="font-size: 12px; color: #888;">-- 上の検索ボタンを押してください --</div>';
+      }
+    })
+    .withFailureHandler(function(err) {
+      alert("システムエラーが発生しました: " + err.message);
+      btn.disabled = false;
+      btn.innerText = '採用登録を実行';
+    })
+    .registerHire(jobId, candIds);
+}
+
+function addListCandRow() {
+  const div = document.createElement('div');
+  div.className = 'sub-field';
+  div.innerHTML = '<input type="text" class="list-cand-id" placeholder="例: 1" oninput="checkCandId(this, null, true)" onblur="applyFormat(this)"><span class="cand-name-display"></span>';
+  document.getElementById('list_cand_inputs').appendChild(div);
+}
+
+function submitList() {
+  const inputs = document.getElementsByClassName('list-cand-id');
+  const candIds = [];
+  
+  for(let i = 0; i < inputs.length; i++) {
+    const val = formatCandId(inputs[i].value);
+    if(val) candIds.push(val);
+  }
+  
+  if (candIds.length === 0) { 
+    alert("出力する候補者の登録者IDを1つ以上入力してください。"); 
+    return; 
+  }
+  
+  const btn = document.getElementById('listBtn');
+  btn.disabled = true;
+  btn.innerText = '作成中...';
+  
+  google.script.run
+    .withSuccessHandler(function(res) {
+      showMsg(res);
+      btn.disabled = false;
+      btn.innerText = '簡易リストを作成';
+      if (res.indexOf('エラー') === -1) {
+        document.getElementById('list_cand_inputs').innerHTML = '<div class="sub-field"><input type="text" class="list-cand-id" placeholder="例: 1" oninput="checkCandId(this, null, true)" onblur="applyFormat(this)"><span class="cand-name-display"></span></div>';
+      }
+    })
+    .withFailureHandler(function(err) {
+      alert("システムエラーが発生しました: " + err.message);
+      btn.disabled = false;
+      btn.innerText = '簡易リストを作成';
+    })
+    .generateSimpleList(candIds);
+}
+
+window.onload = function() {
+  google.script.run.withSuccessHandler(function(dict) {
+    if (dict) candidateDict = dict;
+  }).getCandidateDict();
+
+  if (MODE === 'JOB') {
+    google.script.run.withSuccessHandler(function(vendors) {
+      const dataList = document.getElementById('company_list');
+      if (dataList && vendors) {
+        vendors.forEach(function(name) {
+          const opt = document.createElement('option');
+          opt.value = name;
+          dataList.appendChild(opt);
+        });
+      }
+    }).getVendorList();
+  }
+  
+  if (MODE === 'NEW' || MODE === 'EDIT' || MODE === 'COMMENT') {
+    google.script.run.withSuccessHandler(function(schools) {
+      const select = document.getElementById('school');
+      if (select && schools) {
+        schools.forEach(function(name) {
+          const opt = document.createElement('option');
+          opt.value = name;
+          opt.textContent = name;
+          select.appendChild(opt);
+        });
+      }
+    }).getSchoolList();
+  }
+};
+</script>

@@ -78,7 +78,28 @@ function searchData() {
       if(!res) return alert('指定されたIDが見つかりません。');
       
       document.getElementById('targetRow').value = res.row;
-      FIELDS.forEach(f => { if(document.getElementById(f)) document.getElementById(f).value = res[f] || ''; });
+      
+      // ▼▼▼ 追加・修正部分 ▼▼▼
+      // カレンダー形式にする項目のリスト
+      const monthFields = ['eduStart', 'eduEnd', 'jlptDate', 'jftDate', 'kaigoSkillDate', 'kaigoLangDate', 'otherJapaneseDate'];
+      
+      FIELDS.forEach(f => { 
+        if(document.getElementById(f)) {
+          let val = res[f] || '';
+          
+          // 前後の余計なスペースを削除して空欄バグを防止
+          if (typeof val === 'string') val = val.trim(); 
+          
+          // マスタの「YYYY年M月」をカレンダー表示用の「YYYY-MM」に自動変換
+          if (monthFields.includes(f) && val) {
+            const match = val.match(/(\d{4})年(\d{1,2})月/);
+            if (match) val = `${match[1]}-${match[2].padStart(2, '0')}`;
+          }
+          
+          document.getElementById(f).value = val;
+        } 
+      });
+      // ▲▲▲ 追加・修正部分 ここまで ▲▲▲
       
       if(res.relative && res.relative !== "日本に家族や親戚はいません。") {
         document.getElementById('relativeSelect').value = ' 有 ';

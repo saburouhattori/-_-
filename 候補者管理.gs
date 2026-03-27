@@ -34,6 +34,12 @@ function addNewRow(formData) {
   const monthFields = ['eduStart', 'eduEnd', 'jlptDate', 'jftDate', 'kaigoSkillDate', 'kaigoLangDate', 'otherJapaneseDate'];
   monthFields.forEach(f => { if (formData[f]) formData[f] = normalizeYearMonth(formData[f]); });
 
+  // ★修正：生年月日をシステム専用の「日付データ」に変換
+  if (formData.birthday) {
+    let cleanStr = formData.birthday.replace(/年|月/g, '/').replace(/日/g, '').replace(/-/g, '/');
+    formData.birthday = new Date(cleanStr); // 年齢計算ができるようにDate型にする
+  }
+
   const masterSs = SpreadsheetApp.openById(MASTER_SS_ID);
   const masterSheet = masterSs.getSheetByName('登録者マスタ');
   const localSs = SpreadsheetApp.getActiveSpreadsheet();
@@ -95,6 +101,9 @@ function addNewRow(formData) {
 
   masterSheet.appendRow(rowData);
 
+  // ★ここを追加：書き込んだ直後に、生年月日のセル(F列=6列目)の見た目を強制的に整える
+  masterSheet.getRange(masterSheet.getLastRow(), 6).setNumberFormat('yyyy"年"m"月"d"日"');
+
   // 画像データの直接書き込み
   if (formData.imageFile) {
     try {
@@ -122,6 +131,12 @@ function updateRow(formData) {
   const monthFields = ['eduStart', 'eduEnd', 'jlptDate', 'jftDate', 'kaigoSkillDate', 'kaigoLangDate', 'otherJapaneseDate'];
   monthFields.forEach(f => { if (formData[f]) formData[f] = normalizeYearMonth(formData[f]); });
 
+  // ★修正：生年月日をシステム専用の「日付データ」に変換
+  if (formData.birthday) {
+    let cleanStr = formData.birthday.replace(/年|月/g, '/').replace(/日/g, '').replace(/-/g, '/');
+    formData.birthday = new Date(cleanStr);
+  }
+
   const masterSheet = SpreadsheetApp.openById(MASTER_SS_ID).getSheetByName('登録者マスタ');
   const photoSheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('候補者写真');
 
@@ -145,6 +160,9 @@ function updateRow(formData) {
       masterSheet.getRange(row, colMap[key]).setValue(formData[key]);
     }
   }
+
+  // ★ここを追加：更新した直後にも、生年月日のセル(F列=6列目)の見た目を強制的に整える
+  masterSheet.getRange(row, 6).setNumberFormat('yyyy"年"m"月"d"日"');
   
   if (formData.imageFile) {
     try {
@@ -215,17 +233,14 @@ function normalizeYearMonth(val) {
   if (!val) return "";
   let str = val.toString().trim();
   
-  // 1. 全角数字を半角に変換（例：「３」→「3」）
   str = str.replace(/[０-９]/g, function(s) {
     return String.fromCharCode(s.charCodeAt(0) - 0xFEE0);
   });
   
-  // 2. 年月の数字を抽出して「'YYYY年M月」に組み直す（一桁の月は0を消す）
   let match = str.match(/(\d{4})[-\/年](\d{1,2})/);
   if (match) {
-    // ★ スプレッドシートの自動日付変換を防ぐために、先頭に「'（シングルクォーテーション）」を付与する
     return "'" + match[1] + "年" + parseInt(match[2], 10) + "月";
   }
   
-  return str; // 変換できない文字列の場合はそのまま返す
+  return str;
 }

@@ -34,7 +34,7 @@ function addNewRow(formData) {
   const monthFields = ['eduStart', 'eduEnd', 'jlptDate', 'jftDate', 'kaigoSkillDate', 'kaigoLangDate', 'otherJapaneseDate'];
   monthFields.forEach(f => { if (formData[f]) formData[f] = normalizeYearMonth(formData[f]); });
 
-  // ★修正：生年月日をシステム専用の「日付データ」に変換
+  // 生年月日をシステム専用の「日付データ」に変換
   if (formData.birthday) {
     let cleanStr = formData.birthday.replace(/年|月/g, '/').replace(/日/g, '').replace(/-/g, '/');
     formData.birthday = new Date(cleanStr); // 年齢計算ができるようにDate型にする
@@ -57,8 +57,7 @@ function addNewRow(formData) {
   }
   const nextId = "SD-" + nextNumber.toString().padStart(4, '0');
 
-  // テキストデータの準備（42列）
-  const rowData = new Array(42).fill(""); 
+  const rowData = new Array(45).fill(""); 
   rowData[0] = nextId; 
   rowData[1] = formData.name; 
   rowData[3] = formData.furigana;
@@ -98,10 +97,13 @@ function addNewRow(formData) {
   rowData[38] = formData.otherJapaneseDate; 
   rowData[40] = formData.comment; 
   rowData[41] = formData.relative;
+  
+  // ★修正：新規登録時にステータス（AR列：配列のインデックス43番目）に「未採用」をセット
+  rowData[43] = "未採用";
 
   masterSheet.appendRow(rowData);
 
-  // ★ここを追加：書き込んだ直後に、生年月日のセル(F列=6列目)の見た目を強制的に整える
+  // 書き込んだ直後に、生年月日のセル(F列=6列目)の見た目を強制的に整える
   masterSheet.getRange(masterSheet.getLastRow(), 6).setNumberFormat('yyyy"年"m"月"d"日"');
 
   // 画像データの直接書き込み
@@ -131,7 +133,7 @@ function updateRow(formData) {
   const monthFields = ['eduStart', 'eduEnd', 'jlptDate', 'jftDate', 'kaigoSkillDate', 'kaigoLangDate', 'otherJapaneseDate'];
   monthFields.forEach(f => { if (formData[f]) formData[f] = normalizeYearMonth(formData[f]); });
 
-  // ★修正：生年月日をシステム専用の「日付データ」に変換
+  // 生年月日をシステム専用の「日付データ」に変換
   if (formData.birthday) {
     let cleanStr = formData.birthday.replace(/年|月/g, '/').replace(/日/g, '').replace(/-/g, '/');
     formData.birthday = new Date(cleanStr);
@@ -161,7 +163,7 @@ function updateRow(formData) {
     }
   }
 
-  // ★ここを追加：更新した直後にも、生年月日のセル(F列=6列目)の見た目を強制的に整える
+  // 更新した直後にも、生年月日のセル(F列=6列目)の見た目を強制的に整える
   masterSheet.getRange(row, 6).setNumberFormat('yyyy"年"m"月"d"日"');
   
   if (formData.imageFile) {

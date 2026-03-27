@@ -5,7 +5,6 @@ const MASTER_SS_ID = '1cq4h6yI0on-bm_MlqUlUi6MMXBlFIXyTCZpzcTZlCMw';
 const URL_UNADOPTED = "https://docs.google.com/spreadsheets/d/1vwBBwQNvTrZ0jBa1-ZfYmYdEZG6YBwEQeZ8PJ9vkrmQ/edit?gid=1414821006#gid=1414821006&fvid=331083492";
 const URL_ADOPTED   = "https://docs.google.com/spreadsheets/d/1vwBBwQNvTrZ0jBa1-ZfYmYdEZG6YBwEQeZ8PJ9vkrmQ/edit?gid=1414821006#gid=1414821006&fvid=1493453362";
 
-
 function onOpen() {
   const ui = SpreadsheetApp.getUi();
   ui.createMenu( '人材事業メニュー' )
@@ -33,18 +32,18 @@ function onOpen() {
 
 /**
  * ★ここを変更しました★
- * 画面中央の大きな「モーダルダイアログ」でフォームを表示する
+ * 後ろの画面を操作できる「モードレスダイアログ」に変更
  */
 function showMainSidebar(mode, title) {
   const html = HtmlService.createTemplateFromFile('MainSidebar');
   html.mode = mode;
   const output = html.evaluate()
     .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL)
-    .setWidth(800)   // ★横幅を800ピクセルに拡大
-    .setHeight(650); // ★高さを650ピクセルに拡大
+    .setWidth(800)
+    .setHeight(650);
 
-  // ★サイドバーではなく、中央のダイアログとして呼び出す
-  SpreadsheetApp.getUi().showModalDialog(output, title);
+  // ★ showModalDialog ではなく showModelessDialog に変更
+  SpreadsheetApp.getUi().showModelessDialog(output, title);
 }
 
 function showSidebarNew()     { showMainSidebar('NEW',  '【新規】候補者登録' ); }

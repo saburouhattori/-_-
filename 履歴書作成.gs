@@ -1,165 +1,136 @@
 /**
- * ヘッダー名から列番号を取得する補助関数（履歴書専用）
- */
-function getColumnMapForResume(sheet) {
-  if (!sheet) return {};
-  const lastCol = sheet.getLastColumn();
-  if (lastCol === 0) return {};
-  const headers = sheet.getRange(1, 1, 1, lastCol).getValues()[0];
-  const map = {};
-  headers.forEach((h, i) => {
-    const cleanHeader = String(h).replace(/\n/g, '').replace(/\s/g, '').trim();
-    if (cleanHeader) map[cleanHeader] = i + 1;
-  });
-  return map;
-}
-
-/**
- * 登録者IDをもとに履歴書を作成する（自動追従版）
+ * 履歴書作成メイン処理
  */
 function rirekisyo() {
+  const ui = SpreadsheetApp.getUi();
+  const response = ui.prompt('履歴書作成', '作成したい候補者の「登録者ID番号」(例: 0001) を入力してください', ui.ButtonSet.OK_CANCEL);
+  if (response.getSelectedButton() !== ui.Button.OK) return;
+  
+  let targetId = response.getResponseText().trim();
+  if (!targetId) return;
+
+  // IDが数字だけの場合に「SD-」を付ける処理
+  if (!targetId.startsWith('SD-')) {
+    targetId = 'SD-' + targetId;
+  }
+
   const ss = SpreadsheetApp.getActiveSpreadsheet();
-  // 統合されたので、ローカルの登録者マスタを直接見に行く
-  const masterSheet = ss.getSheetByName("登録者マスタ");
-  if (!masterSheet) {
-    Browser.msgBox("「登録者マスタ」シートが見つかりません。");
-    return;
-  }
   
-  const sheet = ss.getSheetByName("履歴書");
-  
-  // 1. 履歴書シートのB2セルからIDを取得
-  const adminId = sheet.getRange("B2").getValue();
-  if (!adminId) {
-    Browser.msgBox("B2セルに登録者ID（SD-xxxx）を入力してください。");
+  // ★修正1：外部IDを使わず、同じファイル内のマスタシートを取得する
+  const mSheet = ss.getSheetByName('登録者マスタ');
+  const rSheet = ss.getSheetByName('履歴書');
+
+  if (!mSheet || !rSheet) {
+    ui.alert('エラー：シートが見つかりません。');
     return;
   }
 
-  // 2. マスタの列番号を名前で取得（ズレ防止）
-  const col = getColumnMapForResume(masterSheet);
-  const dataRows = masterSheet.getDataRange().getValues();
-  let rowData = null;
-  let targetRowIndex = -1;
+  // 特定セルのクリア（以前のデータ残り防止）
+  rSheet.getRange('J33').clearContent();
+  rSheet.getRange('M33').clearContent();
 
-  // 3. IDに一致する行を検索
-  for (let i = 1; i < dataRows.length; i++) {
-    if (String(dataRows[i][0]).trim().toUpperCase() === String(adminId).trim().toUpperCase()) {
-      rowData = dataRows[i];
-      targetRowIndex = i + 1;
+  const data = mSheet.getDataRange().getValues();
+  let targetData = null;
+
+  // IDを検索
+  for (let i = 1; i < data.length; i++) {
+    if (data[i][0] === targetId) {
+      targetData = data[i];
       break;
     }
   }
 
-  if (!rowData) {
-    Browser.msgBox("指定されたID（" + adminId + "）が「登録者マスタ」に見つかりません。");
+  if (!targetData) {
+    ui.alert('エラー：ID ' + targetId + ' が見つかりません。');
     return;
   }
 
-  // 補助関数：項目名から値を取得する
-  const getVal = (name) => {
-    const cIdx = col[name.replace(/\s/g, '')];
-    if (!cIdx) return "";
-    const val = rowData[cIdx - 1];
-    // 日付型の場合はフォーマット
-    if (val instanceof Date) return Utilities.formatDate(val, "JST", "yyyy年M月d日");
-    return val || "";
-  };
-
-  // ---------------------------------------------------------
-  // 4. 基本情報の書き込み
-  // ---------------------------------------------------------
-  sheet.getRange("C4").setValue(getVal('フリガナ'));
-  sheet.getRange("C5").setValue(getVal('呼び名'));
-  sheet.getRange("C6").setValue(getVal('名前')); // 履歴書上のラベルは氏名
+  // --- 書き出し処理（お客様の元のセル配置をそのまま使用） ---
+  rSheet.getRange('B2').setValue(targetData[0]);  // ID
+  rSheet.getRange('D4').setValue(targetData[3]);  // フリガナ
+  rSheet.getRange('D5').setValue(targetData[4]);  // 呼び名
+  rSheet.getRange('D6').setValue(targetData[1]);  // 名前
   
-  sheet.getRange("C8").setValue(getVal('生年月日'));
-  sheet.getRange("G8").setValue(getVal('満年齢') + "歳");
-  sheet.getRange("C9").setValue(" " + getVal('性別') + " "); // スペースで調整
-  sheet.getRange("K8").setValue(" " + getVal('配偶者') + " ");
-  sheet.getRange("K9").setValue(getVal('身長') + "cm");
-  sheet.getRange("K10").setValue(getVal('体重') + "kg");
-
-  sheet.getRange("C12").setValue(getVal('現住所'));
-  sheet.getRange("C13").setValue(getVal('住所（出身地）'));
-  sheet.getRange("K12").setValue(getVal('メールアドレス'));
-
-  // ---------------------------------------------------------
-  // 5. 写真の取得（登録者マスタのC列/顔写真列から直接取得）
-  // ---------------------------------------------------------
-  const photoColIdx = col['顔写真'];
-  if (photoColIdx) {
-    const photoImage = masterSheet.getRange(targetRowIndex, photoColIdx).getValue();
-    if (photoImage) {
-      sheet.getRange("D4").setValue(photoImage);
-    } else {
-      sheet.getRange("D4").clearContent();
-    }
+  // 生年月日
+  if (targetData[5] instanceof Date) {
+    rSheet.getRange('D9').setValue(Utilities.formatDate(targetData[5], "JST", "yyyy/MM/dd"));
+  } else {
+    rSheet.getRange('D9').setValue(targetData[5]);
   }
-
-  // ---------------------------------------------------------
-  // 6. 学歴・職歴の書き込み
-  // ---------------------------------------------------------
-  // いったんクリア
-  sheet.getRange("B17:T20").clearContent();
-  sheet.getRange("B22:T24").clearContent();
+  
+  rSheet.getRange('G9').setValue(targetData[6] ? targetData[6] + '歳' : ''); //年齢
+  rSheet.getRange('D10').setValue(targetData[7]);//性別
+  rSheet.getRange('K9').setValue(targetData[8]); //配偶者
+  rSheet.getRange('K10').setValue(targetData[9] ? targetData[9] + 'cm' : ''); //身長
+  rSheet.getRange('K11').setValue(targetData[10] ? targetData[10] + 'kg' : ''); //体重
+  rSheet.getRange('E13').setValue(targetData[11]);//現住所
+  rSheet.getRange('K13').setValue(targetData[13]);//メールアドレス
+  rSheet.getRange('E14').setValue(targetData[12]);//出身地住所
 
   // 学歴
-  sheet.getRange("B17").setValue(getVal('学歴＞入学年月'));
-  sheet.getRange("G17").setValue(getVal('学歴＞学校名') + "　入学");
-  sheet.getRange("B18").setValue(getVal('学歴＞卒業/中退年月'));
-  sheet.getRange("G18").setValue(" " + getVal('学歴＞状況') + " ");
-  sheet.getRange("G19").setValue(getVal('学歴＞補足'));
+  rSheet.getRange('B17').setValue(targetData[18]);//入学年月
+  rSheet.getRange('F17').setValue(targetData[15] ? targetData[15] + '　入学' : ''); //学校名
+  rSheet.getRange('B18').setValue(targetData[19]);//卒業または中退等の年月
+  rSheet.getRange('F18').setValue(targetData[17]);//学歴状況
+  rSheet.getRange('F20').setValue(targetData[20]);//学歴に関する補足
+  
+  // 職歴
+  rSheet.getRange('C23').setValue(targetData[21] + '　' + targetData[22]);//職歴①の期間と内容
+  rSheet.getRange('C24').setValue(targetData[23] + '　' + targetData[24]);//職歴②の期間と内容
+  rSheet.getRange('B25').setValue(targetData[25] + '　' + targetData[26]);//職歴③の期間と内容
 
-  // 職歴（3つ分）
-  if (getVal('職歴①＞期間')) {
-    sheet.getRange("B22").setValue(getVal('職歴①＞期間'));
-    sheet.getRange("G22").setValue(getVal('職歴①＞内容'));
-  }
-  if (getVal('職歴②＞期間')) {
-    sheet.getRange("B23").setValue(getVal('職歴②＞期間'));
-    sheet.getRange("G23").setValue(getVal('職歴②＞内容'));
-  }
-  if (getVal('職歴③＞期間')) {
-    sheet.getRange("B24").setValue(getVal('職歴③＞期間'));
-    sheet.getRange("G24").setValue(getVal('職歴③＞内容'));
+  // 資格・試験
+  if (!targetData[27]) {
+    rSheet.getRange('E29').setValue('-');
+  } else {
+    rSheet.getRange('E29').setValue(targetData[27] + '合格（' + (targetData[28] || '') + '）');
   }
 
-  // ---------------------------------------------------------
-  // 7. 日本語能力・資格
-  // ---------------------------------------------------------
-  // JLPT
-  let jlpt = getVal('特定技能要件＞JLPTレベル') ? getVal('特定技能要件＞JLPTレベル') + "合格" : "-";
-  if (getVal('特定技能要件＞JLPT取得年月')) jlpt += "（" + getVal('特定技能要件＞JLPT取得年月') + "）";
-  sheet.getRange("D29").setValue(jlpt);
+  if (!targetData[29]) {
+    rSheet.getRange('E30').setValue('-');
+  } else {
+    rSheet.getRange('E30').setValue(targetData[29] + '合格（' + (targetData[30] || '') + '）');
+  }
 
-  // JFT
-  let jft = getVal('特定技能要件＞JFTBasicレベル') ? getVal('特定技能要件＞JFTBasicレベル') + "合格" : "-";
-  if (getVal('特定技能要件＞JFT取得年月')) jft += "（" + getVal('特定技能要件＞JFT取得年月') + "）";
-  sheet.getRange("D30").setValue(jft);
+  if (!targetData[31]) {
+    rSheet.getRange('R28').setValue('-');
+  } else {
+    rSheet.getRange('R28').setValue(targetData[31] + '（' + (targetData[32] || '') + '）');
+  }
 
-  // 介護技能
-  let skill = getVal('特定技能要件＞介護技能評価試験') || "-";
-  if (getVal('特定技能要件＞介護技能取得年月')) skill += " （" + getVal('特定技能要件＞介護技能取得年月') + "）";
-  sheet.getRange("L29").setValue(skill);
+  if (!targetData[33]) {
+    rSheet.getRange('R29').setValue('-');
+  } else {
+    rSheet.getRange('R29').setValue(targetData[33] + '（' + (targetData[34] || '') + '）');
+  }
 
-  // 介護日本語
-  let lang = getVal('特定技能要件＞介護日本語評価試験') || "-";
-  if (getVal('特定技能要件＞介護日本語取得年月')) lang += " （" + getVal('特定技能要件＞介護日本語取得年月') + "）";
-  sheet.getRange("L30").setValue(lang);
+  rSheet.getRange('J30').setValue(targetData[35]);
 
-  // その他試験
-  sheet.getRange("D31").setValue(getVal('その他の日本語能力試験') || "-");
-  sheet.getRange("H31").setValue(getVal('取得年月') ? "（" + getVal('取得年月') + "）" : "");
+  if (targetData[36]) {
+    rSheet.getRange('R30').setValue('合格（' + targetData[36] + '）');
+  } else {
+    rSheet.getRange('R30').clearContent();
+  }
 
-  // ---------------------------------------------------------
-  // 8. その他
-  // ---------------------------------------------------------
-  sheet.getRange("B34").setValue(getVal('日本在住の親族について'));
-  sheet.getRange("B38").setValue(getVal('コメント'));
+  if (targetData[37]) {
+    rSheet.getRange('B33').setValue(targetData[37]);
+  } else {
+    rSheet.getRange('B33').clearContent();
+  }
 
-  // 完了メッセージ（右下に日付を入れる）
-  const today = Utilities.formatDate(new Date(), "JST", "yyyy年M月d日");
-  sheet.getRange("O2").setValue(today);
+  if (targetData[38]) {
+    rSheet.getRange('F33').setValue('合格（' + targetData[38] + '）');
+  } else {
+    rSheet.getRange('F33').clearContent();
+  }
 
-  Browser.msgBox(getVal('名前') + " さんの履歴書を作成しました。");
+  // コメント・備考
+  rSheet.getRange('C36').setValue(targetData[39]);
+  rSheet.getRange('C41').setValue(targetData[41]);
+  
+  // ★修正2：候補者写真シートが消えたため、登録者マスタのC列（顔写真）を参照するように修正
+  const photoFormula = '=IFERROR(VLOOKUP(B2, \'登録者マスタ\'!A:C, 3, FALSE), "")';
+  rSheet.getRange('Q3').setFormula(photoFormula);
+
+  ui.alert('ID: ' + targetId + ' の履歴書作成が完了しました。');
 }

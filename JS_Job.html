@@ -1,0 +1,102 @@
+<script>
+function submitCompany() {
+  let name = document.getElementById('comp_name').value.trim();
+  if (!name) { showModal('事業者名称は必須です。'); return; }
+  let formData = { name: name, yomi: document.getElementById('comp_yomi').value, address: document.getElementById('comp_address').value, url: document.getElementById('comp_url').value, note: document.getElementById('comp_note').value };
+  document.getElementById('compBtn').disabled = true; showModal('登録中...', true);
+  google.script.run.withSuccessHandler(function(msg) {
+    document.getElementById('compBtn').disabled = false; showModal(msg);
+    document.querySelectorAll('#form-company input, #form-company textarea').forEach(el => el.value = '');
+    document.getElementById('comp_warning').style.display = 'none';
+  }).addCompany(formData);
+}
+
+function liveCheckDuplicate(name) {
+  let warningBox = document.getElementById('comp_warning');
+  if (!name.trim()) { warningBox.style.display = 'none'; return; }
+  google.script.run.withSuccessHandler(function(isDup) { warningBox.style.display = isDup ? 'block' : 'none'; }).checkCompanyDuplicate(name);
+}
+
+function addJobCandRow() {
+  let container = document.getElementById('job_cand_list'); let div = document.createElement('div'); div.className = 'sub-field';
+  div.innerHTML = '<input type="text" class="job-cand-id" placeholder="例: 1" oninput="checkCandId(this, null, true)" onblur="applyFormat(this)"><span class="cand-name-display"></span>';
+  container.appendChild(div);
+}
+
+function submitJob() {
+  let company = document.getElementById('job_company').value.trim();
+  if (!company) { showModal('事業者名を入力してください。'); return; }
+  let candInputs = document.querySelectorAll('.job-cand-id'); let candidates = [];
+  candInputs.forEach(input => { let val = input.value.trim(); if (val) candidates.push(formatId(val)); });
+  if (candidates.length === 0) { showModal('候補者を少なくとも1名入力してください。'); return; }
+  
+  let formData = {
+    company: company, candidates: candidates, interviewDate: document.getElementById('job_interviewDate').value,
+    relatedFile: document.getElementById('job_relatedFile').value,
+    relatedFileName: document.getElementById('job_relatedFileName') ? document.getElementById('job_relatedFileName').value : "",
+    memo: document.getElementById('job_memo').value
+  };
+  
+  document.getElementById('jobBtn').disabled = true; showModal('案件を登録中...', true);
+  google.script.run.withSuccessHandler(function(msg) {
+    document.getElementById('jobBtn').disabled = false; showModal(msg);
+    document.getElementById('job_company').value = ''; document.getElementById('job_interviewDate').value = '';
+    document.getElementById('job_relatedFile').value = ''; if(document.getElementById('job_relatedFileName')) document.getElementById('job_relatedFileName').value = '';
+    document.getElementById('job_memo').value = '';
+    document.getElementById('job_cand_list').innerHTML = '<div class="sub-field"><input type="text" class="job-cand-id" placeholder="例: 1" oninput="checkCandId(this, null, true)" onblur="applyFormat(this)"><span class="cand-name-display"></span></div>';
+  }).addJob(formData);
+}
+
+function fetchJobCandidates(mode) {
+  let rawId = document.getElementById(mode + '_job_id').value.trim();
+  if (!rawId) { showModal('案件IDを入力してください。'); return; }
+  let jobId = formatJobId(rawId); document.getElementById(mode + '_job_id').value = jobId;
+  showModal('候補者を取得中...', true);
+  
+  google.script.run.withSuccessHandler(function(candidates) {
+    closeModal(); let container = document.getElementById(mode + '_cand_list');
+    if (!candidates || candidates.length === 0) { container.innerHTML = '<div style="color:#d93025; font-size:12px;">候補者が見つかりません。案件IDを確認してください。</div>'; return; }
+    let html = '';
+    candidates.forEach(c => {
+      html += `<label style="display:flex; align-items:center; margin-bottom:8px; font-size:14px; cursor:pointer;">
+                 <input type="checkbox" class="${mode}-cand-checkbox" value="${c.id}" style="margin:0 8px 0 0; width:16px; height:16px; flex-shrink:0;">
+                 <span style="line-height:1.2;">${c.display}</span>
+               </label>`;
+    });
+    container.innerHTML = html;
+  }).getJobCandidates(jobId);
+}
+
+function submitHire() {
+  let rawId = document.getElementById('hire_job_id').value.trim();
+  if (!rawId) { showModal('案件IDを入力してください。'); return; }
+  let jobId = formatJobId(rawId);
+  let checkboxes = document.querySelectorAll('.hire-cand-checkbox');
+  if (checkboxes.length === 0) { showModal('先に「候補者検索」を行ってください。'); return; }
+  
+  let hiredIds = []; checkboxes.forEach(cb => { if (cb.checked) hiredIds.push(cb.value); });
+  if (!confirm(`選択した ${hiredIds.length} 名を「採用」として登録します。よろしいですか？`)) return;
+  
+  document.getElementById('hireBtn').disabled = true; showModal('採用登録を実行中...', true);
+  google.script.run.withSuccessHandler(function(msg) {
+    document.getElementById('hireBtn').disabled = false; showModal(msg);
+    document.getElementById('hire_job_id').value = ''; document.getElementById('hireJobDisplay').innerText = '';
+    document.getElementById('hire_cand_list').innerHTML = '<div style="font-size: 12px; color: #888;">-- 上の検索ボタンを押してください --</div>';
+  }).registerHire(jobId, hiredIds);
+}
+
+function addListCandRow() {
+  let container = document.getElementById('list_cand_inputs'); let div = document.createElement('div'); div.className = 'sub-field';
+  div.innerHTML = '<input type="text" class="list-cand-id" placeholder="例: 1" oninput="checkCandId(this, null, true)" onblur="applyFormat(this)"><span class="cand-name-display"></span>';
+  container.appendChild(div);
+}
+
+function submitList() {
+  let candInputs = document.querySelectorAll('.list-cand-id'); let candidates = [];
+  candInputs.forEach(input => { let val = input.value.trim(); if (val) candidates.push(formatId(val)); });
+  if (candidates.length === 0) { showModal('候補者を少なくとも1名入力してください。'); return; }
+  
+  document.getElementById('listBtn').disabled = true; showModal('簡易リストを作成中...', true);
+  google.script.run.withSuccessHandler(function(msg) { document.getElementById('listBtn').disabled = false; showModal(msg); }).generateSimpleList(candidates);
+}
+</script>

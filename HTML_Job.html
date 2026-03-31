@@ -1,0 +1,80 @@
+<div id="form-job" style="display: <?= mode === 'JOB' ? 'block' : 'none' ?>;">
+<div class="section-title" >案件登録</div>
+<div class="field">
+  <label>事業者名（文字を入力すると候補が出ます）</label>
+  <input type="text" id="job_company" list="company_list" placeholder="例：株式会社〇〇（新規も可）">
+  <datalist id="company_list"></datalist>
+</div>
+<div class="field" >
+<label>候補者（登録者IDを入力）</label>
+<div id="job_cand_list">
+  <div class="sub-field">
+    <input type="text" class="job-cand-id" placeholder="例: 1" oninput="checkCandId(this, null, true)" onblur="applyFormat(this)">
+    <span class="cand-name-display"></span>
+  </div>
+</div>
+<button class="btn-secondary" onclick="addJobCandRow()" style="margin-top:5px; font-size:11px; padding: 6px;">+ 候補者IDを追加</button>
+</div>
+
+<div class="form-row">
+  <div class="field">
+    <label>面接日</label>
+    <input type="date" id="job_interviewDate" style="max-width: 200px;">
+  </div>
+</div>
+<div class="form-row">
+  <div class="field">
+    <label>関連ファイル（Googleドライブ）</label>
+    <div style="display:flex; gap:5px; width: 100%;">
+      <input type="text" id="job_relatedFile" placeholder=" ドライブから選択、またはURLを直接入力 " style="flex:1; width: 100%; min-width: 0;" oninput="document.getElementById('job_relatedFileName').value=''">
+      <input type="hidden" id="job_relatedFileName">
+      <button class="btn-secondary" onclick="openDrivePicker()" style="width:auto; flex-shrink:0; margin:0; padding:8px 12px; font-size:12px;">ドライブから選択</button>
+      <button class="btn-secondary" onclick="clearDriveFile()" style="width:auto; flex-shrink:0; margin:0; padding:8px 12px; font-size:12px; background:#e0e0e0; color:#333; border:none;">クリア</button>
+    </div>
+  </div>
+</div>
+<div class="field">
+  <label>備考・メモ</label>
+  <textarea id="job_memo" rows="3"></textarea>
+</div>
+
+<button class="btn-primary" id="jobBtn" onclick="submitJob()" >登録</button>
+</div>
+
+<div id="form-hire" style="display: <?= mode === 'HIRE' ? 'block' : 'none' ?>;">
+<div class="section-title" style="border-left-color: #34a853;">採用者一括登録</div>
+<div class="field">
+  <label>採用元の案件ID</label>
+  <div style="display: flex; gap: 10px;">
+    <input type="text" id="hire_job_id" placeholder="例: 1 または 0001" oninput="checkJobId(this, 'hireJobDisplay')" onblur="applyJobFormat(this)" style="flex: 2;">
+    <button class="btn-secondary" style="flex: 1; margin-top: 0; padding: 8px;" onclick="fetchJobCandidates('hire')">候補者検索</button>
+  </div>
+  <div id="hireJobDisplay" style="font-size:11px; color:#34a853; margin-top:4px; height:14px;"></div>
+</div>
+<div class="field">
+<label>採用された候補者（複数選択可）</label>
+<div id="hire_cand_list" style="padding: 10px; border: 1px solid #ced4da; border-radius: 4px; background: #f8f9fa;">
+  <div style="font-size: 12px; color: #888;">-- 上の検索ボタンを押してください --</div>
+</div>
+</div>
+<div style="text-align: center; margin-top: 20px;">
+  <button class="btn-primary" id="hireBtn" style="background: #34a853; width: 200px;" onclick="submitHire()" >採用登録を実行</button>
+</div>
+<p style="font-size: 11px; color: #555; margin-top: 10px; text-align: center;">※案件管理とマスタシートのステータスが更新されます。</p>
+</div>
+
+<div id="form-list" style="display: <?= mode === 'LIST' ? 'block' : 'none' ?>;">
+<div class="section-title" style="border-left-color: #fbbc04;">簡易リスト作成</div>
+<div class="field" >
+<label>候補者（登録者IDを入力）</label>
+<div id="list_cand_inputs">
+  <div class="sub-field">
+    <input type="text" class="list-cand-id" placeholder="例: 1" oninput="checkCandId(this, null, true)" onblur="applyFormat(this)">
+    <span class="cand-name-display"></span>
+  </div>
+</div>
+<button class="btn-secondary" onclick="addListCandRow()" style="margin-top:5px; font-size:11px; padding: 6px;">+ 候補者IDを追加</button>
+</div>
+<button class="btn-primary" id="listBtn" style="background: #fbbc04; color: #333;" onclick="submitList()" >簡易リストを作成</button>
+<p style="font-size: 11px; color: #555; margin-top: 10px;">※「簡易リスト」シートのB2:L51が毎回リセットされ、指定した候補者が出力されます。</p>
+</div>

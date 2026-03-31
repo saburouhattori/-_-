@@ -1,0 +1,100 @@
+<script>
+let candidateDict = {};
+let jobDict = {};
+
+window.onload = function() {
+  google.script.run.withSuccessHandler(function(dict) { candidateDict = dict; }).getCandidateDict();
+
+  if (MODE === 'NEW' || MODE === 'EDIT') {
+    google.script.run.withSuccessHandler(function(schools) {
+      let select = document.getElementById('school');
+      if(select) schools.forEach(function(school) { let opt = document.createElement('option'); opt.value = school; opt.text = school; select.appendChild(opt); });
+    }).getSchoolList();
+  }
+
+  if (MODE === 'JOB') {
+    google.script.run.withSuccessHandler(function(companies) {
+      let datalist = document.getElementById('company_list');
+      if(datalist) companies.forEach(function(company) { let opt = document.createElement('option'); opt.value = company; datalist.appendChild(opt); });
+    }).getCompanyList();
+  }
+
+  if (MODE === 'ADDINFO') {
+    google.script.run.withSuccessHandler(function(agents) {
+      let select = document.getElementById('add_agent');
+      if(select) agents.forEach(function(agent) { let opt = document.createElement('option'); opt.value = agent; opt.text = agent; select.appendChild(opt); });
+    }).getAgentList();
+  }
+
+  if (MODE === 'HIRE') {
+    google.script.run.withSuccessHandler(function(dict) { jobDict = dict; }).getJobDict();
+  }
+};
+
+function openDrivePicker() { document.getElementById('picker-modal').style.display = 'block'; searchDrive(); }
+function closePicker() { document.getElementById('picker-modal').style.display = 'none'; }
+function clearDriveFile() { document.getElementById('job_relatedFile').value = ''; if(document.getElementById('job_relatedFileName')) document.getElementById('job_relatedFileName').value = ''; }
+
+function searchDrive() {
+  const query = document.getElementById('picker-query').value;
+  const resultsDiv = document.getElementById('picker-results');
+  resultsDiv.innerHTML = '<div style="padding:10px;">検索中...</div>';
+  google.script.run.withSuccessHandler(function(files) {
+    if (!files || files.length === 0) { resultsDiv.innerHTML = '<div style="padding:10px;">ファイルが見つかりません。</div>'; return; }
+    let html = '';
+    files.forEach(function(f) {
+      const safeName = f.name.replace(/'/g, "\\'").replace(/"/g, "&quot;");
+      html += `<div class="picker-item" onclick="selectDriveFile('${f.url}', '${safeName}')">${f.name}</div>`;
+    });
+    resultsDiv.innerHTML = html;
+  }).searchDriveFiles(query);
+}
+
+function selectDriveFile(url, name) {
+  document.getElementById('job_relatedFile').value = url;
+  document.getElementById('job_relatedFileName').value = name;
+  closePicker();
+}
+
+function formatId(rawId) { let numStr = rawId.replace(/[^0-9]/g, ''); return numStr.length > 0 ? "SD-" + numStr.padStart(4, '0') : rawId; }
+function applyFormat(inputElem) { if (inputElem.value.trim() !== '') inputElem.value = formatId(inputElem.value); }
+function checkCandId(inputElem, displayId) {
+  let rawVal = inputElem.value.trim();
+  let displayElem = displayId ? document.getElementById(displayId) : inputElem.nextElementSibling;
+  if (!displayElem) return;
+  if (rawVal === '') { displayElem.innerText = ''; return; }
+  let formatted = formatId(rawVal);
+  if (candidateDict[formatted]) {
+    displayElem.innerText = candidateDict[formatted]; displayElem.style.color = (MODE === 'DELETE') ? '#d93025' : '#1a73e8';
+  } else {
+    displayElem.innerText = '未登録のIDです'; displayElem.style.color = '#d93025';
+  }
+}
+
+function formatJobId(rawId) { let numStr = rawId.replace(/[^0-9]/g, ''); return numStr.length > 0 ? "JOB-" + numStr.padStart(4, '0') : rawId; }
+function applyJobFormat(inputElem) { if (inputElem.value.trim() !== '') inputElem.value = formatJobId(inputElem.value); }
+function checkJobId(inputElem, displayId) {
+  let rawVal = inputElem.value.trim();
+  let displayElem = document.getElementById(displayId);
+  if (!displayElem) return;
+  if (rawVal === '') { displayElem.innerText = ''; return; }
+  let formatted = formatJobId(rawVal);
+  if (jobDict[formatted]) {
+    displayElem.innerText = jobDict[formatted]; displayElem.style.color = '#34a853';
+  } else {
+    displayElem.innerText = '未登録の案件IDです'; displayElem.style.color = '#d93025';
+  }
+}
+
+function toggleRelative() {
+  const sel = document.getElementById('relativeSelect'); const det = document.getElementById('relativeDetail');
+  if(sel && det) { if (sel.value === '有') { det.style.display = 'block'; } else { det.style.display = 'none'; det.value = ''; } }
+}
+
+function showModal(msg, keepOpen) {
+  document.getElementById('modal-text').innerText = msg;
+  document.getElementById('overlay').style.display = 'flex';
+  document.querySelector('#modal-message button').style.display = keepOpen ? 'none' : 'block';
+}
+function closeModal() { document.getElementById('overlay').style.display = 'none'; }
+</script>

@@ -4,20 +4,18 @@
 <base target="_top">
 <?!= include('Sidebar_CSS'); ?>
 <style>
-  /* ★今回追加：項目を横並びにするための魔法のコード（Flexbox） */
   .form-row {
     display: flex;
-    gap: 15px; /* 横の隙間 */
+    gap: 15px; 
     margin-bottom: 12px;
   }
   .form-row .field {
-    flex: 1; /* 等間隔に広がる */
-    margin-bottom: 0; /* 元々の縦の隙間を消す */
+    flex: 1; 
+    margin-bottom: 0; 
   }
   .form-row .field.flex-2 {
-    flex: 2; /* 住所など、他より広く取りたい項目用 */
+    flex: 2; 
   }
-  /* スマホ等で画面が極端に狭くなった場合は自動で縦並びに戻る安全設計 */
   @media (max-width: 500px) {
     .form-row {
       flex-direction: column;
@@ -173,6 +171,7 @@
 </div>
 </div>
 
+
 <div id="form-addinfo" style="display: <?= mode === 'ADDINFO' ? 'block' : 'none' ?>;">
   
   <div class="search-box" style="max-width: 400px; margin-bottom: 20px;">
@@ -212,7 +211,8 @@
   <div class="form-row">
     <div class="field"><label>直近の入国日</label><input type="date" id="add_lastInDate"></div>
     <div class="field"><label>直近の出国日</label><input type="date" id="add_lastOutDate"></div>
-    <div class="field flex-2"></div></div>
+    <div class="field flex-2"></div>
+  </div>
 
   <div class="section-title">日本在住の親族情報</div>
   <div class="form-row">
@@ -285,11 +285,12 @@
 <div id="form-hire" style="display: <?= mode === 'HIRE' ? 'block' : 'none' ?>;">
 <div class="section-title" style="border-left-color: #34a853;">採用者一括登録</div>
 <div class="field">
-<label>採用元の案件ID</label>
-<div class="sub-field">
-  <input type="text" id="hire_job_id" placeholder="例: JOB-0001">
-  <button class="btn-secondary" style="margin-top: 0; padding: 8px;" onclick="fetchJobCandidates('hire')">候補者検索</button>
-</div>
+  <label>採用元の案件ID</label>
+  <div style="display: flex; gap: 10px;">
+    <input type="text" id="hire_job_id" placeholder="例: 1 または 0001" oninput="checkJobId(this, 'hireJobDisplay')" onblur="applyJobFormat(this)" style="flex: 2;">
+    <button class="btn-secondary" style="flex: 1; margin-top: 0; padding: 8px;" onclick="fetchJobCandidates('hire')">候補者検索</button>
+  </div>
+  <div id="hireJobDisplay" style="font-size:11px; color:#34a853; margin-top:4px; height:14px;"></div>
 </div>
 <div class="field">
 <label>採用された候補者（複数選択可）</label>
@@ -297,8 +298,10 @@
   <div style="font-size: 12px; color: #888;">-- 上の検索ボタンを押してください --</div>
 </div>
 </div>
-<button class="btn-primary" id="hireBtn" style="background: #34a853;" onclick="submitHire()" >採用登録を実行</button>
-<p style="font-size: 11px; color: #555; margin-top: 10px;">※案件管理とマスタシートのステータスが更新されます。</p>
+<div style="text-align: center; margin-top: 20px;">
+  <button class="btn-primary" id="hireBtn" style="background: #34a853; width: 200px;" onclick="submitHire()" >採用登録を実行</button>
+</div>
+<p style="font-size: 11px; color: #555; margin-top: 10px; text-align: center;">※案件管理とマスタシートのステータスが更新されます。</p>
 </div>
 
 <div id="form-list" style="display: <?= mode === 'LIST' ? 'block' : 'none' ?>;">

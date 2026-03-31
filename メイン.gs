@@ -1,18 +1,16 @@
-// 【重要】外部マスタ管理スプレッドシートのID
-const MASTER_SS_ID = '1cq4h6yI0on-bm_MlqUlUi6MMXBlFIXyTCZpzcTZlCMw';
-
 // ⬇️ フィルタ表示呼び出し用のURL設定 ⬇️
 const URL_UNADOPTED = "https://docs.google.com/spreadsheets/d/1vwBBwQNvTrZ0jBa1-ZfYmYdEZG6YBwEQeZ8PJ9vkrmQ/edit?gid=1414821006#gid=1414821006&fvid=331083492";
 const URL_ADOPTED   = "https://docs.google.com/spreadsheets/d/1vwBBwQNvTrZ0jBa1-ZfYmYdEZG6YBwEQeZ8PJ9vkrmQ/edit?gid=1414821006#gid=1414821006&fvid=1493453362";
 
 /**
- * 【共通関数】マスタのヘッダー名から列番号（1始まり）をマップ形式で取得する
+ * 共通：マスタのヘッダー名から列番号を取得（自分のファイル内を見る）
  */
 function getMasterColumnMap(sheet) {
-  const headers = sheet.getRange(1, 1, 1, sheet.getMaxColumns()).getValues()[0];
+  const lastCol = sheet.getLastColumn();
+  if (lastCol === 0) return {};
+  const headers = sheet.getRange(1, 1, 1, lastCol).getValues()[0];
   const map = {};
   headers.forEach((h, i) => {
-    // 改行を除去し、スペースを詰めて正規化して保存
     const cleanHeader = String(h).replace(/\n/g, '').replace(/\s/g, '').trim();
     if (cleanHeader) map[cleanHeader] = i + 1;
   });
@@ -44,6 +42,9 @@ function onOpen() {
     .addToUi();
 }
 
+/**
+ * Webアプリ（iframe）を使わず、直接安定して画面を表示する
+ */
 function showMainSidebar(mode, title) {
   const html = HtmlService.createTemplateFromFile('MainSidebar');
   html.mode = mode;
@@ -65,16 +66,14 @@ function showSidebarDelete()  { showMainSidebar('DELETE', '【削除】登録者
 function showSidebarHire()    { showMainSidebar('HIRE', '【登録】採用者登録'); }
 function showSidebarList()    { showMainSidebar('LIST', '【作成】簡易リスト出力'); }
 
-/**
- * 採用者の追加情報をマスタに保存する機能（ヘッダー名ベース）
- */
+// --- データの読み書きはすべて「自分自身のファイル」に対して行う ---
+
 function updateAddInfoRow(formData) {
   try {
-    const masterSheet = SpreadsheetApp.openById(MASTER_SS_ID).getSheetByName('登録者マスタ');
-    const col = getMasterColumnMap(masterSheet);
+    const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('登録者マスタ');
+    if (!sheet) return "エラー：登録者マスタが見つかりません。";
+    const col = getMasterColumnMap(sheet);
     const row = Number(formData.row);
-    if (!row) return "エラー：行が特定できません。";
-
     const mapping = {
       agent: '所属送り出し機関', offerDate: '内定日', birthCity: '出生地（都市名）',
       addressDetail: '住所詳細', passportNum: 'パスポート番号', passportExp: 'パスポート有効期限',
@@ -86,47 +85,36 @@ function updateAddInfoRow(formData) {
       relLive2: '日本在住の親族情報親族との同居予定の有無', relWork2: '日本在住の親族情報親族の勤務先・通学先',
       relCard2: '日本在住の親族情報親族の在留カード番号', memo: '備考・メモ'
     };
-
     for (let key in mapping) {
-      const headerName = mapping[key].replace(/\s/g, ''); // 検索用正規化
-      if (col[headerName] && formData[key] !== undefined) {
-        masterSheet.getRange(row, col[headerName]).setValue(formData[key]);
-      }
+      const h = mapping[key].replace(/\s/g, '');
+      if (col[h] && formData[key] !== undefined) sheet.getRange(row, col[h]).setValue(formData[key]);
     }
     return `追加情報の登録が完了しました。`;
   } catch (e) { return "エラー: " + e.message; }
 }
 
 function getAgentList() {
-  try {
-    const masterSs = SpreadsheetApp.openById(MASTER_SS_ID);
-    const agentSheet = masterSs.getSheetByName('送り出し機関マスタ');
-    if (!agentSheet) return [];
-    const data = agentSheet.getDataRange().getValues();
-    return [...new Set(data.slice(1).map(row => row[1]).filter(name => name !== ""))].sort();
-  } catch(e) { return []; }
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getSheetByName('送り出し機関マスタ');
+  if (!sheet) return [];
+  return [...new Set(sheet.getDataRange().getValues().slice(1).map(row => row[1]).filter(n => n))].sort();
 }
 
 function getSchoolList() {
-  try {
-    const masterSs = SpreadsheetApp.openById(MASTER_SS_ID);
-    const schoolSheet = masterSs.getSheetByName('日本語学校マスタ');
-    if (!schoolSheet) return [];
-    const data = schoolSheet.getDataRange().getValues();
-    return [...new Set(data.slice(1).map(row => row[1]).filter(name => name !== ""))].sort();
-  } catch(e) { return []; }
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getSheetByName('日本語学校マスタ');
+  if (!sheet) return [];
+  return [...new Set(sheet.getDataRange().getValues().slice(1).map(row => row[1]).filter(n => n))].sort();
 }
 
 function getCandidateDict() {
-  try {
-    const masterSs = SpreadsheetApp.openById(MASTER_SS_ID);
-    const sheet = masterSs.getSheetByName('登録者マスタ');
-    if (!sheet) return {};
-    const data = sheet.getRange(2, 1, sheet.getLastRow() - 1, 2).getValues();
-    const dict = {};
-    data.forEach(row => { if (row[0]) dict[String(row[0]).trim()] = String(row[1]); });
-    return dict;
-  } catch(e) { return {}; }
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getSheetByName('登録者マスタ');
+  if (!sheet) return {};
+  const data = sheet.getRange(2, 1, Math.max(1, sheet.getLastRow()-1), 2).getValues();
+  const dict = {};
+  data.forEach(row => { if (row[0]) dict[String(row[0]).trim()] = String(row[1]); });
+  return dict;
 }
 
 function openFilterUnadopted() { showLinkDialog(URL_UNADOPTED, '未採用者リスト'); }

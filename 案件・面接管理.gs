@@ -1,9 +1,10 @@
 /**
- * 採用者一括登録処理（ヘッダー名ベース）
+ * 採用者一括登録処理
  */
 function registerHire(jobId, candIds) {
   try {
-    const jobSheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('案件管理');
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    const jobSheet = ss.getSheetByName('案件管理');
     const jobData = jobSheet.getDataRange().getValues();
     let jobRow = -1, companyName = "", existingHiredStr = "", interviewDateRaw = "";
     for (let i = 1; i < jobData.length; i++) {
@@ -16,9 +17,17 @@ function registerHire(jobId, candIds) {
     if (jobRow === -1) return "エラー: 案件IDが見つかりません。";
 
     const interviewDateStr = interviewDateRaw instanceof Date ? Utilities.formatDate(interviewDateRaw, "JST", "yyyy/MM/dd") : String(interviewDateRaw || "日付不明");
-    const masterSheet = SpreadsheetApp.openById(MASTER_SS_ID).getSheetByName('登録者マスタ');
-    const candData = masterSheet.getDataRange().getValues();
-    const col = getMasterColumnMap(masterSheet);
+    
+    // 自シート内のマスタを見る
+    let candSheet = ss.getSheetByName('登録者マスタ');
+    let masterIsExternal = false;
+    if (!candSheet) {
+      candSheet = SpreadsheetApp.openById('1cq4h6yI0on-bm_MlqUlUi6MMXBlFIXyTCZpzcTZlCMw').getSheetByName('登録者マスタ');
+      masterIsExternal = true;
+    }
+    
+    const candData = candSheet.getDataRange().getValues();
+    const col = getMasterColumnMap(candSheet);
 
     const hiredNames = [];
     for (let i = 1; i < candData.length; i++) {
@@ -28,10 +37,10 @@ function registerHire(jobId, candIds) {
         const addText = "【採用】" + interviewDateStr + "：" + companyName;
         if (col['面接履歴']) {
           const currentHistory = candData[i][col['面接履歴']-1] || "";
-          masterSheet.getRange(row, col['面接履歴']).setValue(currentHistory ? currentHistory + "\n" + addText : addText);
+          candSheet.getRange(row, col['面接履歴']).setValue(currentHistory ? currentHistory + "\n" + addText : addText);
         }
-        if (col['ステータス']) masterSheet.getRange(row, col['ステータス']).setValue("採用");
-        if (col['採用事業者']) masterSheet.getRange(row, col['採用事業者']).setValue(companyName);
+        if (col['ステータス']) candSheet.getRange(row, col['ステータス']).setValue("採用");
+        if (col['採用事業者']) candSheet.getRange(row, col['採用事業者']).setValue(companyName);
         hiredNames.push(cId + "-" + candData[i][1]);
       }
     }
@@ -67,7 +76,7 @@ function addJob(company, candIds) {
   const lastRow = sheet.getLastRow();
   let nextId = "JOB-0001";
   if (lastRow >= 2) {
-    const lastId = sheet.getRange(lastRow, 1).getValue().toString();
+    const lastId = String(sheet.getRange(lastRow, 1).getValue());
     const nextNum = (parseInt(lastId.match(/\d+/)[0], 10) + 1);
     nextId = "JOB-" + nextNum.toString().padStart(4, '0');
   }
@@ -80,10 +89,13 @@ function addJob(company, candIds) {
 
 function generateSimpleList(candIds) {
   try {
-    const masterSheet = SpreadsheetApp.openById(MASTER_SS_ID).getSheetByName('登録者マスタ');
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    let masterSheet = ss.getSheetByName('登録者マスタ');
+    if (!masterSheet) masterSheet = SpreadsheetApp.openById('1cq4h6yI0on-bm_MlqUlUi6MMXBlFIXyTCZpzcTZlCMw').getSheetByName('登録者マスタ');
+    
     const masterData = masterSheet.getDataRange().getValues();
     const col = getMasterColumnMap(masterSheet);
-    const listSheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('簡易リスト');
+    const listSheet = ss.getSheetByName('簡易リスト');
     listSheet.getRange('B2:L51').clearContent();
 
     const result = [];
@@ -107,9 +119,10 @@ function generateSimpleList(candIds) {
 }
 
 function getCompanyList() {
-  const masterSs = SpreadsheetApp.openById(MASTER_SS_ID);
-  const sheet = masterSs.getSheetByName('事業者マスタ');
-  if (!sheet) return [];
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  let sheet = ss.getSheetByName('事業者マスタ');
+  if (!sheet) sheet = SpreadsheetApp.openById('1cq4h6yI0on-bm_MlqUlUi6MMXBlFIXyTCZpzcTZlCMw').getSheetByName('事業者マスタ');
+  
   const data = sheet.getDataRange().getValues();
   return data.slice(1).map(row => row[1]).filter(n => n);
 }
@@ -120,15 +133,33 @@ function checkCompanyDuplicate(name) {
 }
 
 function addCompany(formData) {
-  const masterSs = SpreadsheetApp.openById(MASTER_SS_ID);
-  const sheet = masterSs.getSheetByName('事業者マスタ');
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  let sheet = ss.getSheetByName('事業者マスタ');
+  if (!sheet) sheet = SpreadsheetApp.openById('1cq4h6yI0on-bm_MlqUlUi6MMXBlFIXyTCZpzcTZlCMw').getSheetByName('事業者マスタ');
+
   const lastRow = sheet.getLastRow();
   let nextId = "CO-0001";
   if (lastRow >= 2) {
-    const lastId = sheet.getRange(lastRow, 1).getValue().toString();
+    const lastId = String(sheet.getRange(lastRow, 1).getValue());
     const nextNum = (parseInt(lastId.match(/\d+/)[0], 10) + 1);
     nextId = "CO-" + nextNum.toString().padStart(4, '0');
   }
   sheet.appendRow([nextId, formData.name, formData.yomi, formData.address, formData.url, formData.note]);
   return `事業者登録完了: ${nextId}`;
+}
+
+function getJobDict() {
+  try {
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    const sheet = ss.getSheetByName('案件管理');
+    if (!sheet) return {};
+    const data = sheet.getDataRange().getValues();
+    const dict = {};
+    for (let i = 1; i < data.length; i++) {
+      const jobId = String(data[i][0]).trim();
+      const company = String(data[i][3]).trim();
+      if (jobId) { dict[jobId] = company; }
+    }
+    return dict;
+  } catch(e) { return {}; }
 }

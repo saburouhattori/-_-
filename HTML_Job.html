@@ -31,16 +31,11 @@
   </div>
 </div>
 
-<div class="form-row">
-  <div class="field">
-    <label>関連ファイル（Googleドライブ）</label>
-    <input type="text" id="job_relatedFile" placeholder=" ドライブから選択、またはURLを直接入力 " style="width: 100%; margin-bottom: 8px; box-sizing: border-box;" oninput="document.getElementById('job_relatedFileName').value=''">
-    <input type="hidden" id="job_relatedFileName">
-    <div style="display:flex; gap:10px;">
-      <button class="btn-secondary" onclick="openDrivePicker()" style="margin:0; padding:10px; font-size:13px; flex:1;">ドライブから選択</button>
-      <button class="btn-secondary" onclick="clearDriveFile()" style="margin:0; padding:10px; font-size:13px; background:#e0e0e0; color:#333; border:none; flex:1;">クリア</button>
+<div class="field">
+  <label>関連ファイル（Googleドライブ）</label>
+  <div id="job_file_list">
     </div>
-  </div>
+  <button class="btn-secondary" onclick="addJobFileRow('job')" style="margin-top:5px; font-size:11px; padding: 6px; width: auto;">+ 関連ファイルを追加</button>
 </div>
 
 <div class="field">
@@ -108,16 +103,11 @@
       </div>
     </div>
 
-    <div class="form-row">
-      <div class="field">
-        <label>関連ファイル（Googleドライブ）</label>
-        <input type="text" id="edit_job_relatedFile" style="width: 100%; margin-bottom: 8px; box-sizing: border-box;" oninput="document.getElementById('edit_job_relatedFileName').value=''">
-        <input type="hidden" id="edit_job_relatedFileName">
-        <div style="display:flex; gap:10px;">
-          <button class="btn-secondary" onclick="openDrivePicker()" style="margin:0; padding:10px; font-size:13px; flex:1;">ドライブから選択</button>
-          <button class="btn-secondary" onclick="clearDriveFile()" style="margin:0; padding:10px; font-size:13px; background:#e0e0e0; color:#333; border:none; flex:1;">クリア</button>
+    <div class="field">
+      <label>関連ファイル（Googleドライブ）</label>
+      <div id="edit_job_file_list">
         </div>
-      </div>
+      <button class="btn-secondary" onclick="addJobFileRow('edit_job')" style="margin-top:5px; font-size:11px; padding: 6px; width: auto;">+ 関連ファイルを追加</button>
     </div>
 
     <div class="field">
@@ -170,7 +160,10 @@
 
 <script>
   window.addEventListener('DOMContentLoaded', () => {
-    if (MODE === 'JOB') addJobCandRow();
+    if (MODE === 'JOB') {
+      addJobCandRow();
+      addJobFileRow('job');
+    }
     if (MODE === 'LIST') addListCandRow();
   });
 </script>

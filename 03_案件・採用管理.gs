@@ -2,6 +2,43 @@
 // 案件管理の操作（登録・更新・削除・採用）
 // =========================================
 
+/**
+ * 補助：指定したセル内の複数のURLをスマートチップに変換する
+ */
+function convertToSmartChips(range, urlText) {
+  if (!urlText) {
+    range.clearContent();
+    return;
+  }
+  const urls = String(urlText).split(/\r?\n/).map(u => u.trim()).filter(u => u);
+  if (urls.length === 0) {
+    range.clearContent();
+    return;
+  }
+  
+  const richTextValue = SpreadsheetApp.newRichTextValue();
+  let fullText = "";
+  let currentPos = 0;
+  
+  urls.forEach((url, i) => {
+    const textPart = "🔗 関連ファイル " + (i + 1);
+    const line = (i > 0 ? "\n" : "") + textPart;
+    fullText += line;
+  });
+  
+  richTextValue.setText(fullText);
+  
+  urls.forEach((url, i) => {
+    const textPart = "🔗 関連ファイル " + (i + 1);
+    const start = currentPos + (i > 0 ? 1 : 0); // 改行分の+1
+    const end = start + textPart.length;
+    richTextValue.setLinkUrl(start, end, url);
+    currentPos = end;
+  });
+  
+  range.setRichTextValue(richTextValue.build());
+}
+
 function addJob(formData) {
   const sheet = getMasterSheet('案件管理');
   const lastRow = sheet.getLastRow();
@@ -13,21 +50,32 @@ function addJob(formData) {
   }
   const nextId = "JOB-" + nextNumber.toString().padStart(4, '0');
 
-  // E列(5番目)に技能分野を挿入
+  // ★修正1：時間は不要（年月日のみの文字列にする）
+  const todayStr = Utilities.formatDate(new Date(), "JST", "yyyy/MM/dd");
+
   const row = [
     nextId,
     '未着手',
-    new Date(),
+    todayStr,
     formData.company,
-    formData.skill, // ★追加：技能分野
-    formData.candidates.join('\n'),
+    formData.skill,
+    formData.candidates.join('\n'), // ★修正2：JS側で「ID-名前」の形にして送られてきます
     formData.interviewDate || '',
     '', // 採用者氏名
-    formData.relatedFile || '',
+    '', // 関連ファイル（スマートチップ化のため、一旦空で追加）
     formData.memo || ''
   ];
   
   sheet.appendRow(row);
+  const newRow = sheet.getLastRow();
+  
+  // ★修正3・改善：スマートチップへの変換処理
+  const fileUrls = Array.isArray(formData.relatedFiles) ? formData.relatedFiles.join('\n') : '';
+  convertToSmartChips(sheet.getRange(newRow, 9), fileUrls);
+  
+  // 念のため、セルの書式を整える
+  sheet.getRange(newRow, 3).setNumberFormat('yyyy/MM/dd');
+
   return `案件登録が完了しました: ${nextId}`;
 }
 
@@ -36,17 +84,33 @@ function getJobDetails(jobId) {
   const data = sheet.getDataRange().getValues();
   for (let i = 1; i < data.length; i++) {
     if (String(data[i][0]) === jobId) {
+      
+      // スマートチップからURLを復元する
+      let rawUrls = "";
+      const richText = sheet.getRange(i + 1, 9).getRichTextValue();
+      if (richText) {
+        const runs = richText.getRuns();
+        const urlArray = [];
+        runs.forEach(run => {
+          const url = run.getLinkUrl();
+          if (url) urlArray.push(url);
+        });
+        rawUrls = urlArray.join('\n');
+      } else {
+        rawUrls = String(data[i][8] || "");
+      }
+
       return {
         row: i + 1,
         id: data[i][0],
         status: data[i][1],
         date: data[i][2],
         company: data[i][3],
-        skill: data[i][4],      // ★追加：技能分野
-        candidates: data[i][5],   // インデックスが1つずれ
+        skill: data[i][4],
+        candidates: data[i][5],
         interviewDate: data[i][6],
         hireNames: data[i][7],
-        relatedFile: data[i][8],
+        relatedFile: rawUrls, // 復元したURLをJSに返す
         memo: data[i][9]
       };
     }
@@ -60,11 +124,14 @@ function updateJob(formData) {
   
   sheet.getRange(row, 2).setValue(formData.status);
   sheet.getRange(row, 4).setValue(formData.company);
-  sheet.getRange(row, 5).setValue(formData.skill);        // ★更新：技能分野
+  sheet.getRange(row, 5).setValue(formData.skill);
   sheet.getRange(row, 6).setValue(formData.candidates.join('\n'));
   sheet.getRange(row, 7).setValue(formData.interviewDate);
-  sheet.getRange(row, 9).setValue(formData.relatedFile);
   sheet.getRange(row, 10).setValue(formData.memo);
+  
+  // ★修正3・改善：スマートチップへの変換処理
+  const fileUrls = Array.isArray(formData.relatedFiles) ? formData.relatedFiles.join('\n') : '';
+  convertToSmartChips(sheet.getRange(row, 9), fileUrls);
   
   return "案件情報を更新しました。";
 }

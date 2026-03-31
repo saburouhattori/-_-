@@ -100,28 +100,21 @@ function addNewRow(formData) {
   }
 
   masterSheet.appendRow(rowValues);
-  if (col['生年月日']) masterSheet.getRange(masterSheet.getLastRow(), col['生年月日']).setNumberFormat('yyyy"年"m"月"d"日"');
+  const newRow = masterSheet.getLastRow();
 
-  // ★修正：画像登録の処理
-  if (formData.imageFile) {
+  if (col['生年月日']) masterSheet.getRange(newRow, col['生年月日']).setNumberFormat('yyyy"年"m"月"d"日"');
+
+  // ★修正：写真は「登録者マスタ」内の「顔写真」列へ直接保存
+  if (formData.imageFile && col['顔写真']) {
     try {
-      const photoSheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('候補者写真');
       const dataUri = `data:${formData.imageFile.mimeType};base64,${formData.imageFile.contents}`;
       const cellImage = SpreadsheetApp.newCellImage().setSourceUrl(dataUri).build();
-      
-      // まずIDだけを書き込む
-      photoSheet.appendRow([nextId, ""]);
-      const newPhotoRow = photoSheet.getLastRow();
-      
-      // その後、2列目に画像をセットする
-      photoSheet.getRange(newPhotoRow, 2).setValue(cellImage);
-      photoSheet.setRowHeight(newPhotoRow, 80);
-    } catch (e) {
-      console.error("写真登録エラー:", e);
-    }
+      masterSheet.getRange(newRow, col['顔写真']).setValue(cellImage);
+      masterSheet.setRowHeight(newRow, 80); // 写真が見えるように行高を調整
+    } catch (e) {}
   }
   
-  updateAges(masterSheet.getLastRow());
+  updateAges(newRow);
   return `登録完了: ${nextId}`;
 }
 
@@ -158,34 +151,14 @@ function updateRow(formData) {
 
   if (col['生年月日']) masterSheet.getRange(row, col['生年月日']).setNumberFormat('yyyy"年"m"月"d"日"');
   
-  // ★修正：画像更新の処理
-  if (formData.imageFile) {
+  // ★修正：写真は「登録者マスタ」内の「顔写真」列へ上書き保存
+  if (formData.imageFile && col['顔写真']) {
     try {
-      const adminId = masterSheet.getRange(row, 1).getValue();
-      const photoSheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('候補者写真');
-      const photoData = photoSheet.getDataRange().getValues();
       const dataUri = `data:${formData.imageFile.mimeType};base64,${formData.imageFile.contents}`;
       const cellImage = SpreadsheetApp.newCellImage().setSourceUrl(dataUri).build();
-      
-      let found = false;
-      for (let j = 0; j < photoData.length; j++) {
-        if (String(photoData[j][0]).trim() === String(adminId).trim()) { 
-          // IDが見つかったら、その行の2列目に画像をセット
-          photoSheet.getRange(j + 1, 2).setValue(cellImage); 
-          found = true; 
-          break; 
-        }
-      }
-      if (!found) {
-        // 見つからなかったら新規追加
-        photoSheet.appendRow([adminId, ""]);
-        const newPhotoRow = photoSheet.getLastRow();
-        photoSheet.getRange(newPhotoRow, 2).setValue(cellImage);
-        photoSheet.setRowHeight(newPhotoRow, 80);
-      }
-    } catch (e) {
-      console.error("写真更新エラー:", e);
-    }
+      masterSheet.getRange(row, col['顔写真']).setValue(cellImage);
+      masterSheet.setRowHeight(row, 80);
+    } catch (e) {}
   }
   
   updateAges(row); 
@@ -220,36 +193,17 @@ function updateAddInfoRow(formData) {
 function deleteCandidate(id) {
   if (!id) return "IDが指定されていません。";
   try {
-    let msg = "";
     const masterSheet = getMasterSheet('登録者マスタ');
     const masterData = masterSheet.getDataRange().getValues();
-    let masterDeleted = false;
     const searchId = String(id).trim().toUpperCase();
 
     for (let i = masterData.length - 1; i >= 1; i--) {
       if (String(masterData[i][0]).trim().toUpperCase() === searchId) {
         masterSheet.deleteRow(i + 1);
-        masterDeleted = true;
-        break; 
+        return "登録者情報をマスタから削除しました。";
       }
     }
-    if (masterDeleted) msg += "・マスタから削除しました。\n";
-    else msg += "・マスタに該当IDは見つかりませんでした。\n";
-
-    const photoSheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('候補者写真');
-    if (photoSheet) {
-      const photoData = photoSheet.getDataRange().getValues();
-      let photoDeleted = false;
-      for (let i = photoData.length - 1; i >= 1; i--) {
-        if (String(photoData[i][0]).trim().toUpperCase() === searchId) {
-          photoSheet.deleteRow(i + 1);
-          photoDeleted = true;
-          break;
-        }
-      }
-      if (photoDeleted) msg += "・「候補者写真」から削除しました。";
-    }
-    return msg;
+    return "エラー: 指定されたIDが見つかりませんでした。";
   } catch (e) { return "エラー: " + e.toString(); }
 }
 

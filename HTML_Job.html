@@ -22,17 +22,19 @@
     <input type="date" id="job_interviewDate" style="max-width: 200px;">
   </div>
 </div>
+
 <div class="form-row">
   <div class="field">
     <label>関連ファイル（Googleドライブ）</label>
-    <div style="display:flex; gap:5px; width: 100%;">
-      <input type="text" id="job_relatedFile" placeholder=" ドライブから選択、またはURLを直接入力 " style="flex:1; width: 100%; min-width: 0;" oninput="document.getElementById('job_relatedFileName').value=''">
-      <input type="hidden" id="job_relatedFileName">
-      <button class="btn-secondary" onclick="openDrivePicker()" style="width:auto; flex-shrink:0; margin:0; padding:8px 12px; font-size:12px;">ドライブから選択</button>
-      <button class="btn-secondary" onclick="clearDriveFile()" style="width:auto; flex-shrink:0; margin:0; padding:8px 12px; font-size:12px; background:#e0e0e0; color:#333; border:none;">クリア</button>
+    <input type="text" id="job_relatedFile" placeholder=" ドライブから選択、またはURLを直接入力 " style="width: 100%; margin-bottom: 8px; box-sizing: border-box;" oninput="document.getElementById('job_relatedFileName').value=''">
+    <input type="hidden" id="job_relatedFileName">
+    <div style="display:flex; gap:10px;">
+      <button class="btn-secondary" onclick="openDrivePicker()" style="margin:0; padding:10px; font-size:13px; flex:1;">ドライブから選択</button>
+      <button class="btn-secondary" onclick="clearDriveFile()" style="margin:0; padding:10px; font-size:13px; background:#e0e0e0; color:#333; border:none; flex:1;">クリア</button>
     </div>
   </div>
 </div>
+
 <div class="field">
   <label>備考・メモ</label>
   <textarea id="job_memo" rows="3"></textarea>

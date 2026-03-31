@@ -1,9 +1,31 @@
 /**
+ * ヘッダー名から列番号を取得する補助関数（履歴書専用）
+ */
+function getColumnMapForResume(sheet) {
+  if (!sheet) return {};
+  const lastCol = sheet.getLastColumn();
+  if (lastCol === 0) return {};
+  const headers = sheet.getRange(1, 1, 1, lastCol).getValues()[0];
+  const map = {};
+  headers.forEach((h, i) => {
+    const cleanHeader = String(h).replace(/\n/g, '').replace(/\s/g, '').trim();
+    if (cleanHeader) map[cleanHeader] = i + 1;
+  });
+  return map;
+}
+
+/**
  * 登録者IDをもとに履歴書を作成する（自動追従版）
  */
 function rirekisyo() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
-  const masterSheet = getMasterSheet("登録者マスタ");
+  // 統合されたので、ローカルの登録者マスタを直接見に行く
+  const masterSheet = ss.getSheetByName("登録者マスタ");
+  if (!masterSheet) {
+    Browser.msgBox("「登録者マスタ」シートが見つかりません。");
+    return;
+  }
+  
   const sheet = ss.getSheetByName("履歴書");
   
   // 1. 履歴書シートのB2セルからIDを取得
@@ -14,7 +36,7 @@ function rirekisyo() {
   }
 
   // 2. マスタの列番号を名前で取得（ズレ防止）
-  const col = getMasterColumnMap(masterSheet);
+  const col = getColumnMapForResume(masterSheet);
   const dataRows = masterSheet.getDataRange().getValues();
   let rowData = null;
   let targetRowIndex = -1;

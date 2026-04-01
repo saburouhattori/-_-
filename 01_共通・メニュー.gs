@@ -33,9 +33,10 @@ function getMasterColumnMap(sheet) {
 /**
  * HTMLファイル読み込み用
  */
-function include(filename, mode) {
+function include(filename, mode, prefillName) {
   const template = HtmlService.createTemplateFromFile(filename);
   template.mode = mode; 
+  template.prefillName = prefillName || ""; // 検索・遷移時の名前保持用
   return template.evaluate().getContent();
 }
 
@@ -72,9 +73,10 @@ function onOpen() {
 /**
  * サイドバー/ダイアログ表示の共通処理
  */
-function showMainSidebar(mode, title) {
+function showMainSidebar(mode, title, prefillName) {
   const html = HtmlService.createTemplateFromFile('MainSidebar');
   html.mode = mode;
+  html.prefillName = prefillName || "";
   const output = html.evaluate()
     .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL)
     .setWidth(800)
@@ -87,7 +89,7 @@ function showSidebarNew()     { showMainSidebar('NEW',  '候補者登録' ); }
 function showSidebarEdit()    { showMainSidebar('EDIT',  'データ更新' ); }
 function showSidebarAddInfo() { showMainSidebar('ADDINFO',  '採用者情報登録' ); }
 function showSidebarComment() { showMainSidebar('COMMENT',  'コメント登録' ); }
-function showSidebarCompany() { showMainSidebar('COMPANY',  '事業者マスタ登録' ); }
+function showSidebarCompany(prefillName) { showMainSidebar('COMPANY',  '事業者マスタ登録', prefillName ); } // 引数対応
 function showSidebarJobNew()  { showMainSidebar('JOB',  '案件登録' ); }
 function showSidebarJobEdit() { showMainSidebar('JOB_EDIT', '案件更新/削除' ); }
 function showSidebarDelete()  { showMainSidebar('DELETE', '登録者削除'); }
@@ -98,7 +100,6 @@ function showSidebarList()    { showMainSidebar('LIST', '簡易リスト出力')
  * リスト同期の実行
  */
 function runSyncListSheets() {
-  // 05_マスタ連携・その他.gs に定義されている関数を呼び出し
   const msg = syncListSheets();
   SpreadsheetApp.getUi().alert(msg);
 }

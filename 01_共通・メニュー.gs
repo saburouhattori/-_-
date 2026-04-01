@@ -25,10 +25,13 @@ function getMasterColumnMap(sheet) {
 }
 
 /**
- * ★修正：元の安全なHTML読み込み関数に戻しました
+ * ★修正：テンプレート（<?= ... ?>）を正しく解釈・実行する関数に戻しました
  */
-function include(filename) {
-  return HtmlService.createHtmlOutputFromFile(filename).getContent();
+function include(filename, mode, prefillName) {
+  const template = HtmlService.createTemplateFromFile(filename);
+  template.mode = mode || "";
+  template.prefillName = prefillName || "";
+  return template.evaluate().getContent();
 }
 
 // =========================================
@@ -67,7 +70,7 @@ function onOpen() {
 function showMainSidebar(mode, title, prefillName) {
   const html = HtmlService.createTemplateFromFile('MainSidebar');
   html.mode = mode;
-  html.prefillName = prefillName || ""; // 引継ぎ用の名前
+  html.prefillName = prefillName || "";
   const output = html.evaluate()
     .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL)
     .setWidth(800)

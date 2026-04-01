@@ -2,7 +2,7 @@
 <html>
   <head>
     <base target="_top">
-    <?!= include('Sidebar_CSS'); ?>
+    <?!= include('Sidebar_CSS', mode); ?>
     <script>
       // サーバー側から渡された変数をJSグローバル変数として保持
       const MODE = '<?= mode ?>';
@@ -11,9 +11,9 @@
   </head>
   <body>
     <div class="container">
-      <?!= include('HTML_Candidate'); ?>
-      <?!= include('HTML_Company'); ?>
-      <?!= include('HTML_Job'); ?>
+      <?!= include('HTML_Candidate', mode); ?>
+      <?!= include('HTML_Company', mode, prefillName); ?>
+      <?!= include('HTML_Job', mode); ?>
       
       <div id="overlay" class="overlay">
         <div id="modal-message">
@@ -40,8 +40,8 @@
       
     </div>
     
-    <?!= include('JS_Common'); ?>
-    <?!= include('JS_Candidate'); ?>
-    <?!= include('JS_Job'); ?>
+    <?!= include('JS_Common', mode); ?>
+    <?!= include('JS_Candidate', mode); ?>
+    <?!= include('JS_Job', mode); ?>
   </body>
 </html>

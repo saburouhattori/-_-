@@ -2,7 +2,7 @@
 <html>
   <head>
     <base target="_top">
-    <?!= include('Sidebar_CSS', mode); ?>
+    <?!= include('Sidebar_CSS'); ?>
     <script>
       // サーバー側から渡された変数をJSグローバル変数として保持
       const MODE = '<?= mode ?>';
@@ -11,8 +11,9 @@
   </head>
   <body>
     <div class="container">
-      <?!= include('HTML_Candidate', mode); ?>
-      <?!= include('HTML_Company', mode, prefillName); ?> <?!= include('HTML_Job', mode); ?>
+      <?!= include('HTML_Candidate'); ?>
+      <?!= include('HTML_Company'); ?>
+      <?!= include('HTML_Job'); ?>
       
       <div id="overlay" class="overlay">
         <div id="modal-message">
@@ -20,10 +21,27 @@
           <button onclick="closeModal()">閉じる</button>
         </div>
       </div>
+      
+      <div id="picker-modal" class="overlay" style="display:none;">
+        <div style="background:white; padding:20px; border-radius:8px; width:400px; max-width:90%;">
+          <h3 style="margin-top:0;">Googleドライブから選択</h3>
+          <div style="display:flex; gap:10px; margin-bottom:10px;">
+            <input type="text" id="picker-query" placeholder="ファイル名で検索" style="flex:1;">
+            <button class="btn-secondary" onclick="searchDrive()" style="padding:6px 12px; margin:0;">検索</button>
+          </div>
+          <div id="picker-results" style="max-height:300px; overflow-y:auto; border:1px solid #ddd;">
+            <div style="padding:10px; color:#666;">検索ボタンを押してください</div>
+          </div>
+          <div style="text-align:right; margin-top:15px;">
+            <button class="btn-secondary" onclick="closePicker()" style="background:#f1f3f4; color:#333; margin:0;">キャンセル</button>
+          </div>
+        </div>
+      </div>
+      
     </div>
     
-    <?!= include('JS_Common', mode); ?>
-    <?!= include('JS_Candidate', mode); ?>
-    <?!= include('JS_Job', mode); ?>
+    <?!= include('JS_Common'); ?>
+    <?!= include('JS_Candidate'); ?>
+    <?!= include('JS_Job'); ?>
   </body>
 </html>

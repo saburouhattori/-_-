@@ -1,11 +1,11 @@
-<div id="form-company" style="display: <?= mode === 'COMPANY' ? 'block' : 'none' ?>;">
+<div id="form-company" style="display: none;">
   <div class="section-title">事業者マスタ登録</div>
   <p style="font-size: 11px; color: #555; margin-top: -5px; margin-bottom: 15px;">※案件登録から遷移した場合、名称が自動入力されます。</p>
 
   <div class="form-row">
     <div class="field flex-2">
       <label>事業者名称 <span style="color:red">*</span></label>
-      <input type="text" id="comp_name" placeholder="例：株式会社〇〇" oninput="liveCheckDuplicate(this.value)" value="<?= prefillName ?>">
+      <input type="text" id="comp_name" placeholder="例：株式会社〇〇" oninput="liveCheckDuplicate(this.value)">
       <div id="comp_warning" style="display:none; color:#d93025; font-size:11px; margin-top:4px;">
         ⚠️ この名称は既にマスタに登録されています。
       </div>

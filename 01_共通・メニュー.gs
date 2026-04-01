@@ -2,9 +2,6 @@
 // システム全体の設定値・共通関数・UI
 // =========================================
 
-/**
- * シートを取得する共通関数
- */
 function getMasterSheet(sheetName) {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   const sheet = ss.getSheetByName(sheetName);
@@ -14,9 +11,6 @@ function getMasterSheet(sheetName) {
   return sheet;
 }
 
-/**
- * ヘッダー名から列番号を取得
- */
 function getMasterColumnMap(sheet) {
   if (!sheet) return {};
   const lastCol = sheet.getLastColumn();
@@ -31,13 +25,10 @@ function getMasterColumnMap(sheet) {
 }
 
 /**
- * HTMLファイル読み込み用
+ * ★修正：元の安全なHTML読み込み関数に戻しました
  */
-function include(filename, mode, prefillName) {
-  const template = HtmlService.createTemplateFromFile(filename);
-  template.mode = mode; 
-  template.prefillName = prefillName || ""; // 検索・遷移時の名前保持用
-  return template.evaluate().getContent();
+function include(filename) {
+  return HtmlService.createHtmlOutputFromFile(filename).getContent();
 }
 
 // =========================================
@@ -76,7 +67,7 @@ function onOpen() {
 function showMainSidebar(mode, title, prefillName) {
   const html = HtmlService.createTemplateFromFile('MainSidebar');
   html.mode = mode;
-  html.prefillName = prefillName || "";
+  html.prefillName = prefillName || ""; // 引継ぎ用の名前
   const output = html.evaluate()
     .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL)
     .setWidth(800)
@@ -84,21 +75,17 @@ function showMainSidebar(mode, title, prefillName) {
   SpreadsheetApp.getUi().showModelessDialog(output, title);
 }
 
-// 各メニューから呼び出される関数
 function showSidebarNew()     { showMainSidebar('NEW',  '候補者登録' ); }
 function showSidebarEdit()    { showMainSidebar('EDIT',  'データ更新' ); }
 function showSidebarAddInfo() { showMainSidebar('ADDINFO',  '採用者情報登録' ); }
 function showSidebarComment() { showMainSidebar('COMMENT',  'コメント登録' ); }
-function showSidebarCompany(prefillName) { showMainSidebar('COMPANY',  '事業者マスタ登録', prefillName ); } // 引数対応
+function showSidebarCompany(prefillName) { showMainSidebar('COMPANY',  '事業者マスタ登録', prefillName ); }
 function showSidebarJobNew()  { showMainSidebar('JOB',  '案件登録' ); }
 function showSidebarJobEdit() { showMainSidebar('JOB_EDIT', '案件更新/削除' ); }
 function showSidebarDelete()  { showMainSidebar('DELETE', '登録者削除'); }
 function showSidebarHire()    { showMainSidebar('HIRE', '採用者登録'); }
 function showSidebarList()    { showMainSidebar('LIST', '簡易リスト出力'); }
 
-/**
- * リスト同期の実行
- */
 function runSyncListSheets() {
   const msg = syncListSheets();
   SpreadsheetApp.getUi().alert(msg);

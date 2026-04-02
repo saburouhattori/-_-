@@ -78,7 +78,6 @@ function addNewRow(formData) {
   }
   const nextId = "SD-" + nextNumber.toString().padStart(4, '0');
   
-  // 修正：getMaxColumns()による肥大化防止
   const safeMaxCol = Math.max(masterSheet.getLastColumn(), ...Object.values(col));
   const rowValues = new Array(safeMaxCol).fill("");
   
@@ -109,13 +108,13 @@ function addNewRow(formData) {
   const newRow = masterSheet.getLastRow();
 
   if (col['生年月日']) masterSheet.getRange(newRow, col['生年月日']).setNumberFormat('yyyy"年"m"月"d"日"');
-  // ★修正：写真は「登録者マスタ」内の「顔写真」列へ直接保存
+  
   if (formData.imageFile && col['顔写真']) {
     try {
       const dataUri = `data:${formData.imageFile.mimeType};base64,${formData.imageFile.contents}`;
       const cellImage = SpreadsheetApp.newCellImage().setSourceUrl(dataUri).build();
       masterSheet.getRange(newRow, col['顔写真']).setValue(cellImage);
-      masterSheet.setRowHeight(newRow, 80); // 写真が見えるように行高を調整
+      masterSheet.setRowHeight(newRow, 80);
     } catch (e) {}
   }
   
@@ -149,7 +148,7 @@ function updateRow(formData) {
     '取得年月': formData.otherJapaneseDate, 'コメント': formData.comment, '日本在住の親族について': formData.relative
   };
 
-  // 修正：1セルごとの通信を排除し、一括で上書きすることでタイムアウトを解消
+  const photoIdx = col['顔写真'] ? col['顔写真'] - 1 : -1; // インデックス (0始まり)
   const safeMaxCol = Math.max(masterSheet.getLastColumn(), ...Object.values(col));
   const currentRowRange = masterSheet.getRange(row, 1, 1, safeMaxCol);
   const currentRowData = currentRowRange.getValues()[0];
@@ -161,10 +160,23 @@ function updateRow(formData) {
     }
   }
   
-  currentRowRange.setValues([currentRowData]);
+  // ★修正：顔写真列（画像オブジェクト）を避けて一括更新することでエラーを回避
+  if (photoIdx !== -1 && photoIdx < safeMaxCol) {
+    // 1列目から顔写真列の直前まで
+    if (photoIdx > 0) {
+      masterSheet.getRange(row, 1, 1, photoIdx).setValues([currentRowData.slice(0, photoIdx)]);
+    }
+    // 顔写真列の次の列から最後まで
+    if (photoIdx < safeMaxCol - 1) {
+      masterSheet.getRange(row, photoIdx + 2, 1, safeMaxCol - (photoIdx + 1)).setValues([currentRowData.slice(photoIdx + 1)]);
+    }
+  } else {
+    // 顔写真列がない場合は通常通り一括更新
+    currentRowRange.setValues([currentRowData]);
+  }
 
   if (col['生年月日']) masterSheet.getRange(row, col['生年月日']).setNumberFormat('yyyy"年"m"月"d"日"');
-  // ★修正：写真は「登録者マスタ」内の「顔写真」列へ上書き保存
+
   if (formData.imageFile && col['顔写真']) {
     try {
       const dataUri = `data:${formData.imageFile.mimeType};base64,${formData.imageFile.contents}`;
@@ -196,7 +208,7 @@ function updateAddInfoRow(formData) {
       relCard2: '日本在住の親族情報親族の在留カード番号', memo: '備考・メモ'
     };
 
-    // 修正：一括上書き処理へ変更し高速化
+    const photoIdx = col['顔写真'] ? col['顔写真'] - 1 : -1;
     const safeMaxCol = Math.max(sheet.getLastColumn(), ...Object.values(col));
     const currentRowRange = sheet.getRange(row, 1, 1, safeMaxCol);
     const currentRowData = currentRowRange.getValues()[0];
@@ -208,7 +220,18 @@ function updateAddInfoRow(formData) {
       }
     }
     
-    currentRowRange.setValues([currentRowData]);
+    // ★修正：こちらも同様に顔写真列を避けて更新
+    if (photoIdx !== -1 && photoIdx < safeMaxCol) {
+      if (photoIdx > 0) {
+        sheet.getRange(row, 1, 1, photoIdx).setValues([currentRowData.slice(0, photoIdx)]);
+      }
+      if (photoIdx < safeMaxCol - 1) {
+        sheet.getRange(row, photoIdx + 2, 1, safeMaxCol - (photoIdx + 1)).setValues([currentRowData.slice(photoIdx + 1)]);
+      }
+    } else {
+      currentRowRange.setValues([currentRowData]);
+    }
+
     return `追加情報の登録が完了しました。`;
   } catch (e) { return "エラー: " + e.message; }
 }

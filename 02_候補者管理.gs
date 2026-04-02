@@ -41,7 +41,9 @@ function safeSearchByAdminId(id) {
         res.kaigoSkill = getVal('特定技能要件＞介護技能評価試験'); res.kaigoSkillDate = getVal('特定技能要件＞介護技能取得年月');
         res.kaigoLang = getVal('特定技能要件＞介護日本語評価試験'); res.kaigoLangDate = getVal('特定技能要件＞介護日本語取得年月');
         res.otherJapanese = getVal('その他の日本語能力試験'); res.otherJapaneseDate = getVal('取得年月');
-        res.comment = getVal('コメント'); res.relative = getVal('日本在住の親族について');
+        // ★修正：読み込み先を「修正前コメント」に変更
+        res.comment = getVal('修正前コメント'); 
+        res.relative = getVal('日本在住の親族について');
         // 追加情報
         res.agent = getVal('所属送り出し機関'); res.offerDate = getVal('内定日'); res.birthCity = getVal('出生地（都市名）');
         res.addressDetail = getVal('住所詳細'); res.passportNum = getVal('パスポート番号'); res.passportExp = getVal('パスポート有効期限');
@@ -97,7 +99,9 @@ function addNewRow(formData) {
     '特定技能要件＞介護技能評価試験': formData.kaigoSkill, '特定技能要件＞介護技能取得年月': formData.kaigoSkillDate,
     '特定技能要件＞介護日本語評価試験': formData.kaigoLang, '特定技能要件＞介護日本語取得年月': formData.kaigoLangDate,
     'その他の日本語能力試験': formData.otherJapanese, '取得年月': formData.otherJapaneseDate,
-    'コメント': formData.comment, '日本在住の親族について': formData.relative, 'ステータス': '未採用'
+    // ★修正：保存先キーを「修正前コメント」に変更
+    '修正前コメント': formData.comment, 
+    '日本在住の親族について': formData.relative, 'ステータス': '未採用'
   };
   for (let header in mapping) {
     const h = header.replace(/\s/g, '');
@@ -145,7 +149,10 @@ function updateRow(formData) {
     '特定技能要件＞JFT取得年月': formData.jftDate, '特定技能要件＞介護技能評価試験': formData.kaigoSkill,
     '特定技能要件＞介護技能取得年月': formData.kaigoSkillDate, '特定技能要件＞介護日本語評価試験': formData.kaigoLang,
     '特定技能要件＞介護日本語取得年月': formData.kaigoLangDate, 'その他の日本語能力試験': formData.otherJapanese,
-    '取得年月': formData.otherJapaneseDate, 'コメント': formData.comment, '日本在住の親族について': formData.relative
+    '取得年月': formData.otherJapaneseDate, 
+    // ★修正：保存先キーを「修正前コメント」に変更
+    '修正前コメント': formData.comment, 
+    '日本在住の親族について': formData.relative
   };
 
   const photoIdx = col['顔写真'] ? col['顔写真'] - 1 : -1; // インデックス (0始まり)
@@ -160,18 +167,15 @@ function updateRow(formData) {
     }
   }
   
-  // ★修正：顔写真列（画像オブジェクト）を避けて一括更新することでエラーを回避
+  // 顔写真列（画像オブジェクト）を避けて一括更新
   if (photoIdx !== -1 && photoIdx < safeMaxCol) {
-    // 1列目から顔写真列の直前まで
     if (photoIdx > 0) {
       masterSheet.getRange(row, 1, 1, photoIdx).setValues([currentRowData.slice(0, photoIdx)]);
     }
-    // 顔写真列の次の列から最後まで
     if (photoIdx < safeMaxCol - 1) {
       masterSheet.getRange(row, photoIdx + 2, 1, safeMaxCol - (photoIdx + 1)).setValues([currentRowData.slice(photoIdx + 1)]);
     }
   } else {
-    // 顔写真列がない場合は通常通り一括更新
     currentRowRange.setValues([currentRowData]);
   }
 
@@ -220,7 +224,6 @@ function updateAddInfoRow(formData) {
       }
     }
     
-    // ★修正：こちらも同様に顔写真列を避けて更新
     if (photoIdx !== -1 && photoIdx < safeMaxCol) {
       if (photoIdx > 0) {
         sheet.getRange(row, 1, 1, photoIdx).setValues([currentRowData.slice(0, photoIdx)]);

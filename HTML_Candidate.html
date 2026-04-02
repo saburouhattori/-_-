@@ -1,8 +1,5 @@
-<div id="form-candidate" style="display: <?= (mode === 'NEW' || mode === 'EDIT' || mode === 'COMMENT') ? 'block' : 'none' ?>;">
-<? if (mode === 'COMMENT') { ?>
-<div class="field" ><label>名前</label><input type= "text" id="name" readonly style="background:#f8f9fa;"></div>
-<div class="field" ><label>コメント</label><textarea id= "comment" rows="15"></textarea></div>
-<? } else { ?>
+<div id="form-candidate" style="display: <?= (mode === 'NEW' || mode === 'EDIT') ? 'block' : 'none' ?>;">
+
 <div class="section-title" >基本情報</div>
 <div class="form-row">
   <div class="field"><label>名前</label><input type="text" id="name"></div>
@@ -96,7 +93,7 @@
   <div class="field flex-2"><label>コメント</label><textarea id="comment" rows="2"></textarea></div>
   <div class="field"><label>写真</label><input type="file" id="imageFile" accept="image/*"></div>
 </div>
-<? } ?>
+
 <div style="text-align: center; margin-top: 20px;">
   <button class="btn-primary" id="mainBtn" onclick="submitData()" style="width: 200px;"><?= mode === 'NEW' ? ' 新規登録 ' : ' 更新 ' ?></button>
 </div>

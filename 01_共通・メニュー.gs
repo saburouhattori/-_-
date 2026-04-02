@@ -45,12 +45,10 @@ function include(filename, mode) {
 
 function onOpen() {
   const ui = SpreadsheetApp.getUi();
-  
   ui.createMenu( '人材事業メニュー' )
     .addItem( '候補者登録' , 'showSidebarNew')
     .addItem( 'データ更新' , 'showSidebarEdit')
     .addItem( '採用者情報登録' , 'showSidebarAddInfo')
-    .addItem( 'コメント登録' , 'showSidebarComment')
     .addSeparator()
     .addItem( '登録者削除' , 'showSidebarDelete')
     .addSeparator()
@@ -86,7 +84,6 @@ function showMainSidebar(mode, title) {
 function showSidebarNew()     { showMainSidebar('NEW',  '候補者登録' ); }
 function showSidebarEdit()    { showMainSidebar('EDIT',  'データ更新' ); }
 function showSidebarAddInfo() { showMainSidebar('ADDINFO',  '採用者情報登録' ); }
-function showSidebarComment() { showMainSidebar('COMMENT',  'コメント登録' ); }
 function showSidebarCompany() { showMainSidebar('COMPANY',  '事業者マスタ登録' ); }
 function showSidebarJobNew()  { showMainSidebar('JOB',  '案件登録' ); }
 function showSidebarJobEdit() { showMainSidebar('JOB_EDIT', '案件更新/削除' ); }

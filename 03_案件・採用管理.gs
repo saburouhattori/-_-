@@ -105,7 +105,9 @@ function addJob(formData) {
 
   const targetRow = lastRow + 1;
   const nextId = "JOB-" + (lastIdNum + 1).toString().padStart(4, '0');
-  const todayStr = Utilities.formatDate(new Date(), "JST", "yyyy/MM/dd");
+  
+  // ★ システム内部(裏側)での日付は「yyyy-MM-dd」に統一
+  const todayStr = Utilities.formatDate(new Date(), "JST", "yyyy-MM-dd");
   
   const candidatesArr = Array.isArray(formData.candidates) ? formData.candidates : [];
   const fileUrlsArr = Array.isArray(formData.relatedFiles) ? formData.relatedFiles : [];
@@ -121,17 +123,18 @@ function addJob(formData) {
     formData.interviewDate || '',     
     '',                               
     '',                               
-    '',                               
     formData.memo || ''               
   ];
 
   sheet.getRange(targetRow, 1, 1, rowData.length).setValues([rowData]);
   
   if (fileUrlsText) {
-    convertToSmartChips(sheet, targetRow, 10, fileUrlsText);
+    convertToSmartChips(sheet, targetRow, 9, fileUrlsText);
   }
   
-  sheet.getRange(targetRow, 3).setNumberFormat('yyyy/MM/dd');
+  // ★ 見た目(表側)のフォーマットを「yyyy年m月d日」に装飾
+  sheet.getRange(targetRow, 3).setNumberFormat('yyyy"年"m"月"d"日"'); // C列: 案件登録日
+  sheet.getRange(targetRow, 7).setNumberFormat('yyyy"年"m"月"d"日"'); // G列: 面接日
 
   return `案件登録が完了しました: ${nextId}`;
 }
@@ -146,14 +149,14 @@ function getJobDetails(jobId) {
   const lastRow = sheet.getLastRow();
   if (lastRow < 2) return null;
 
-  const data = sheet.getRange(1, 1, lastRow, 11).getValues();
+  const data = sheet.getRange(1, 1, lastRow, 10).getValues();
   const searchId = String(jobId).trim().toUpperCase();
 
   for (let i = 1; i < data.length; i++) {
     if (String(data[i][0]).trim().toUpperCase() === searchId) {
       let rawUrls = "";
       try {
-        const richText = sheet.getRange(i + 1, 10).getRichTextValue();
+        const richText = sheet.getRange(i + 1, 9).getRichTextValue();
         if (richText) {
           const runs = richText.getRuns();
           const urlArray = [];
@@ -167,12 +170,22 @@ function getJobDetails(jobId) {
         console.error("URL抽出エラー: " + e);
       }
       
-      if (!rawUrls) rawUrls = String(data[i][9] || ""); 
+      if (!rawUrls) rawUrls = String(data[i][8] || ""); 
 
+      // ★ 取得時に確実に「yyyy-MM-dd」形式でフロントエンドへ渡す
       let ivDate = data[i][6];
-      if (ivDate instanceof Date) ivDate = Utilities.formatDate(ivDate, "JST", "yyyy-MM-dd");
+      if (ivDate instanceof Date) {
+        ivDate = Utilities.formatDate(ivDate, "JST", "yyyy-MM-dd");
+      } else if (typeof ivDate === 'string' && ivDate) {
+        ivDate = ivDate.replace(/\//g, '-');
+      }
+
       let rDate = data[i][2];
-      if (rDate instanceof Date) rDate = Utilities.formatDate(rDate, "JST", "yyyy-MM-dd");
+      if (rDate instanceof Date) {
+        rDate = Utilities.formatDate(rDate, "JST", "yyyy-MM-dd");
+      } else if (typeof rDate === 'string' && rDate) {
+        rDate = rDate.replace(/\//g, '-');
+      }
 
       return {
         row: i + 1,
@@ -185,7 +198,7 @@ function getJobDetails(jobId) {
         interviewDate: ivDate,
         hireNames: data[i][7],
         relatedFile: rawUrls, 
-        memo: data[i][10]
+        memo: data[i][9]
       };
     }
   }
@@ -208,10 +221,15 @@ function updateJob(formData) {
   sheet.getRange(row, 4).setValue(formData.company || '');
   sheet.getRange(row, 5).setValue(formData.skill || '');
   sheet.getRange(row, 6).setValue(candidatesArr.join('\n'));
-  sheet.getRange(row, 7).setValue(formData.interviewDate || '');
-  sheet.getRange(row, 11).setValue(formData.memo || '');
   
-  convertToSmartChips(sheet, row, 10, fileUrlsText);
+  // ★ システム内部(裏側)での日付は「yyyy-MM-dd」として書き込む
+  sheet.getRange(row, 7).setValue(formData.interviewDate || '');
+  // ★ 見た目(表側)のフォーマットを「yyyy年m月d日」に装飾
+  sheet.getRange(row, 7).setNumberFormat('yyyy"年"m"月"d"日"');
+  
+  sheet.getRange(row, 10).setValue(formData.memo || '');
+  
+  convertToSmartChips(sheet, row, 9, fileUrlsText);
   
   return "案件情報を更新しました。";
 }
@@ -280,8 +298,10 @@ function registerHire(jobId, hiredIds) {
   const candDict = getCandidateDict();
 
   hiredIds.forEach(id => {
-    const name = candDict[id] || id;
-    hiredNames.push(name);
+    const name = candDict[id] || "";
+    const displayVal = name ? `${id}-${name}` : id;
+    hiredNames.push(displayVal);
+    
     for (let j = 1; j < mData.length; j++) {
       if (String(mData[j][0]).trim() === String(id).trim()) {
         if (mCol['ステータス']) mSheet.getRange(j + 1, mCol['ステータス']).setValue('採用');
@@ -291,7 +311,7 @@ function registerHire(jobId, hiredIds) {
     }
   });
 
-  sheet.getRange(targetJobRow, 8).setValue(hiredNames.join(', '));
+  sheet.getRange(targetJobRow, 8).setValue(hiredNames.join('\n'));
   sheet.getRange(targetJobRow, 2).setValue('終了');
 
   return `${hiredIds.length} 名の採用登録を完了しました。案件ステータスを「終了」にしました。`;

@@ -4,20 +4,17 @@
 
 function getAgentList() {
   const sheet = getMasterSheet('送り出し機関マスタ');
-  return sheet ?
-    [...new Set(sheet.getDataRange().getValues().slice(1).map(row => row[1]).filter(n => n))].sort() : [];
+  return sheet ? [...new Set(sheet.getDataRange().getValues().slice(1).map(row => row[1]).filter(n => n))].sort() : [];
 }
 
 function getSchoolList() {
   const sheet = getMasterSheet('日本語学校マスタ');
-  return sheet ?
-    [...new Set(sheet.getDataRange().getValues().slice(1).map(row => row[1]).filter(n => n))].sort() : [];
+  return sheet ? [...new Set(sheet.getDataRange().getValues().slice(1).map(row => row[1]).filter(n => n))].sort() : [];
 }
 
 function getCompanyList() {
   const sheet = getMasterSheet('事業者マスタ');
-  return sheet ?
-    [...new Set(sheet.getDataRange().getValues().slice(1).map(row => row[1]).filter(n => n))].sort() : [];
+  return sheet ? [...new Set(sheet.getDataRange().getValues().slice(1).map(row => row[1]).filter(n => n))].sort() : [];
 }
 
 function getCandidateDict() {
@@ -62,8 +59,7 @@ function searchDriveFiles(fileNameQuery) {
       count++;
     }
     return files;
-  } catch (e) { return [];
-  }
+  } catch (e) { return []; }
 }
 
 function generateSimpleList(candIds) {
@@ -90,7 +86,6 @@ function generateSimpleList(candIds) {
         } 
       }
       if (rowData) {
-    
         const getVal = (name) => col[name.replace(/\s/g, '')] ? rowData[col[name.replace(/\s/g, '')]-1] : "";
         result.push([
           getVal('名前'), 
@@ -112,11 +107,10 @@ function generateSimpleList(candIds) {
       listSheet.getRange(2, 2, formulas.length, 1).setFormulas(formulas);
     }
     return `${result.length}名の簡易リストを作成しました。`;
-  } catch(e) { return "エラー: " + e.message;
-  }
+  } catch(e) { return "エラー: " + e.message; }
 }
 
-// ★追加：採用者・未採用者一覧を「静的テキスト」で同期する処理
+// 採用者・未採用者一覧を「静的テキスト」で同期する処理
 function syncListSheets() {
   try {
     const ss = SpreadsheetApp.getActiveSpreadsheet();
@@ -125,9 +119,10 @@ function syncListSheets() {
 
     const mData = masterSheet.getDataRange().getValues();
     if (mData.length < 2) return "マスタにデータがありません。";
-    // お客様指定の列番号（1始まり）をプログラム用のインデックス（0始まり）に変換
-    const unadoptedCols = [1, 2, 7, 8, 43, 40].map(c => c - 1);
+
+    // 採用者一覧の列指定
     const adoptedCols = [45, 48, 1, 2, 4, 5, 6, 7, 8, 9, 14, 28, 30, 15, 46, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70].map(c => c - 1);
+    
     const unadoptedData = [];
     const adoptedData = [];
 
@@ -144,7 +139,67 @@ function syncListSheets() {
       const status = String(row[43]).trim(); // AR列 (インデックス43) がステータス
 
       if (status === '未採用') {
-        const uRow = unadoptedCols.map(idx => row[idx] !== undefined ? formatDate(row[idx]) : "");
+        let quals = [];
+        
+        // JLPT (インデックス27: AB列)
+        let jlpt = String(row[27] || "").trim();
+        if (jlpt && jlpt !== "-" && jlpt !== "×" && !jlpt.includes("予定") && !jlpt.includes("不合格")) {
+          quals.push(jlpt);
+        }
+        
+        // JFT (インデックス29: AD列)
+        let jft = String(row[29] || "").trim();
+        if (jft && jft !== "-" && jft !== "×" && !jft.includes("予定") && !jft.includes("不合格")) {
+          quals.push(jft);
+        }
+        
+        // 介護技能 (インデックス31: AF列)
+        let kaigoG = String(row[31] || "").trim();
+        if (kaigoG && kaigoG !== "-" && kaigoG !== "×" && !kaigoG.includes("不合格")) {
+          if (kaigoG.includes("予定")) {
+            quals.push("介護技能（受験予定）");
+          } else {
+            quals.push("介護技能（合格）");
+          }
+        }
+        
+        // 介護日本語 (インデックス33: AH列)
+        let kaigoN = String(row[33] || "").trim();
+        if (kaigoN && kaigoN !== "-" && kaigoN !== "×" && !kaigoN.includes("不合格")) {
+          if (kaigoN.includes("予定")) {
+            quals.push("介護日本語（受験予定）");
+          } else {
+            quals.push("介護日本語（合格）");
+          }
+        }
+        
+        // その他 (インデックス35: AJ列)
+        let other = String(row[35] || "").trim();
+        if (other && other !== "-" && other !== "×" && !other.includes("不合格")) {
+          if (other === "外食業特定技能１号技能測定試験") {
+            quals.push("外食業技能（合格）");
+          } else if (other === "飲食料品製造業特定技能１号技能測定試験") {
+            quals.push("飲食料品製造技能（合格）");
+          } else {
+            if (other.includes("合格")) {
+              quals.push(other);
+            } else {
+              quals.push(other + "（合格）");
+            }
+          }
+        }
+
+        const skillReq = quals.join(", ");
+
+        const uRow = [
+          formatDate(row[0]),   // A: 登録者ID
+          formatDate(row[1]),   // B: 名前
+          formatDate(row[6]),   // C: 満年齢
+          formatDate(row[7]),   // D: 性別
+          skillReq,             // E: 特定技能要件
+          formatDate(row[42]),  // F: 面接履歴
+          formatDate(row[39])   // G: コメント
+        ];
         unadoptedData.push(uRow);
       } else if (status === '採用' || status === '内定') {
         const aRow = adoptedCols.map(idx => row[idx] !== undefined ? formatDate(row[idx]) : "");
@@ -158,9 +213,9 @@ function syncListSheets() {
       if (!targetSheet) return;
       
       const lastRow = targetSheet.getLastRow();
-      const lastCol = targetSheet.getLastColumn(); // 修正：getMaxColumns()による高負荷処理を排除
+      const lastCol = targetSheet.getLastColumn();
       
-      // 2行目以降の既存データをクリア（テーブルを壊さないように中身のみクリア）
+      // 2行目以降の既存データをクリア
       if (lastRow > 1 && lastCol > 0) {
         targetSheet.getRange(2, 1, lastRow - 1, lastCol).clearContent();
       }

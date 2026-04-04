@@ -90,43 +90,44 @@ function addJob(formData) {
       }
     }
 
-    // ★ 改善：A列をチェックして「本当のターゲット行」を探す
+    // --- 書き込み行の特定ロジック ---
     const dataRange = sheet.getDataRange();
     const aVals = dataRange.getValues().map(r => r[0]); 
     let lastIdNum = 0;
     let targetRow = -1;
 
-    for (let i = 1; i < aVals.length; i++) { // ヘッダー(0)を飛ばす
+    for (let i = 1; i < aVals.length; i++) { 
       let val = String(aVals[i]).trim();
-      
-      // 案件IDの最大値を探す
       let match = val.match(/\d+/);
       if (val.startsWith("JOB-") && match) {
         let num = parseInt(match[0], 10);
         if (num > lastIdNum) lastIdNum = num;
       }
-      
-      // 最初に見つけた「空白」または「フッターらしき行」をターゲットにする
       if (val === "" && targetRow === -1) {
         targetRow = i + 1;
       }
     }
 
-    // もし空白行が見つからなかった場合（表が完全に埋まっている場合）
     if (targetRow === -1) {
       targetRow = sheet.getLastRow() + 1;
-      sheet.insertRowAfter(sheet.getLastRow()); // 新しい行を追加
+      sheet.insertRowAfter(sheet.getLastRow());
     } else {
-      // 空白行が見つかったが、それがフッターの直前など余裕がない場合は1行挿入する
-      // （※この処理により、既存の書式を維持したまま行が増えます）
       sheet.insertRowBefore(targetRow);
     }
 
     const nextId = "JOB-" + (lastIdNum + 1).toString().padStart(4, '0');
     
-    // ★ 改善：システム内部の日付は「yyyy-MM-dd」の文字列で安定させる
-    const todayStr = Utilities.formatDate(new Date(), "JST", "yyyy/MM/dd");
-    let interviewStr = formData.interviewDate ? formData.interviewDate.replace(/-/g, '/') : '';
+    // --- 日付処理 (案B: 純粋なDateオブジェクトを作成) ---
+    const now = new Date();
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate()); // 時間を00:00:00に固定
+    
+    let interviewDate = '';
+    if (formData.interviewDate) {
+      const parts = formData.interviewDate.split('-'); // "yyyy-mm-dd"
+      if (parts.length === 3) {
+        interviewDate = new Date(parts[0], parts[1] - 1, parts[2]);
+      }
+    }
     
     const candidatesArr = Array.isArray(formData.candidates) ? formData.candidates : [];
     const fileUrlsArr = Array.isArray(formData.relatedFiles) ? formData.relatedFiles : [];
@@ -135,28 +136,24 @@ function addJob(formData) {
     const rowData = [
       nextId,                           
       '未着手',                          
-      todayStr,                         
+      today,                            // Dateオブジェクト
       companyName,                      
       formData.skill || '',             
       candidatesArr.join('\n'),         
-      interviewStr,                    
+      interviewDate,                    // Dateオブジェクト
       '',                               
       '',                               
       formData.memo || ''               
     ];
 
-    // データ書き込み前に確実に書式を日付にしておく
-    sheet.getRange(targetRow, 3).setNumberFormat('yyyy/MM/dd');
-    sheet.getRange(targetRow, 7).setNumberFormat('yyyy/MM/dd');
-
-    // データ書き込み
+    // データを書き込む
     sheet.getRange(targetRow, 1, 1, rowData.length).setValues([rowData]);
     
     try {
       if (fileUrlsText) {
         convertToSmartChips(sheet, targetRow, 9, fileUrlsText);
       }
-      // ★ 改善：書き込み完了後に、見た目だけを「yyyy年m月d日」に装飾
+      // 書き込み完了後に見た目だけを装飾
       sheet.getRange(targetRow, 3).setNumberFormat('yyyy"年"m"月"d"日"');
       sheet.getRange(targetRow, 7).setNumberFormat('yyyy"年"m"月"d"日"');
     } catch(ex) {
@@ -204,9 +201,11 @@ function getJobDetails(jobId) {
         
         if (!rawUrls) rawUrls = String(data[i][8] || ""); 
 
+        // 取得時に確実に「yyyy-MM-dd」文字列に変換する
         const toIsoDate = (val) => {
           if (val instanceof Date) return Utilities.formatDate(val, "JST", "yyyy-MM-dd");
           if (typeof val === 'string' && val) {
+            // 文字列が混在している場合の置換
             return val.replace(/[年月]/g, '-').replace(/日/g, '').replace(/\//g, '-');
           }
           return '';
@@ -251,12 +250,17 @@ function updateJob(formData) {
     sheet.getRange(row, 5).setValue(formData.skill || '');
     sheet.getRange(row, 6).setValue(candidatesArr.join('\n'));
     
-    let interviewStr = formData.interviewDate ? formData.interviewDate.replace(/-/g, '/') : '';
+    // 更新時もDateオブジェクトに変換して保存
+    let interviewDate = '';
+    if (formData.interviewDate) {
+      const parts = formData.interviewDate.split('-');
+      if (parts.length === 3) {
+        interviewDate = new Date(parts[0], parts[1] - 1, parts[2]);
+      }
+    }
     
     const cell = sheet.getRange(row, 7);
-    cell.setNumberFormat('yyyy/MM/dd');
-    cell.setValue(interviewStr);
-    cell.setNumberFormat('yyyy"年"m"月"d"日"');
+    cell.setValue(interviewDate).setNumberFormat('yyyy"年"m"月"d"日"');
     
     sheet.getRange(row, 10).setValue(formData.memo || '');
     

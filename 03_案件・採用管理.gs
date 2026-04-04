@@ -63,245 +63,310 @@ function convertToSmartChips(sheet, row, col, urlText) {
  * 案件登録（新規事業者の自動マスタ登録付き）
  */
 function addJob(formData) {
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
-  const sheet = ss.getSheetByName('案件管理');
-  if (!sheet) throw new Error("「案件管理」シートが見つかりません。");
+  try {
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    const sheet = ss.getSheetByName('案件管理');
+    if (!sheet) throw new Error("「案件管理」シートが見つかりません。");
 
-  const companyName = String(formData.company || "").trim();
-  if (companyName) {
-    const compSheet = ss.getSheetByName('事業者マスタ');
-    if (compSheet) {
-      const compData = compSheet.getDataRange().getValues();
-      const exists = compData.some(row => String(row[1]).trim() === companyName);
-      if (!exists) {
-        let lastIdNum = 0;
-        for (let i = 1; i < compData.length; i++) {
-          let idVal = String(compData[i][0]);
-          let match = idVal.match(/\d+/);
-          if (match) {
-            let num = parseInt(match[0], 10);
-            if (num > lastIdNum) lastIdNum = num;
+    const companyName = String(formData.company || "").trim();
+    if (companyName) {
+      const compSheet = ss.getSheetByName('事業者マスタ');
+      if (compSheet) {
+        const compData = compSheet.getDataRange().getValues();
+        const exists = compData.some(row => String(row[1]).trim() === companyName);
+        if (!exists) {
+          let lastIdNum = 0;
+          for (let i = 1; i < compData.length; i++) {
+            let idVal = String(compData[i][0]);
+            let match = idVal.match(/\d+/);
+            if (match) {
+              let num = parseInt(match[0], 10);
+              if (num > lastIdNum) lastIdNum = num;
+            }
           }
+          const nextCompId = "CO-" + (lastIdNum + 1).toString().padStart(4, '0');
+          compSheet.appendRow([nextCompId, companyName, "", "", "", "案件登録により自動追加"]);
         }
-        const nextCompId = "CO-" + (lastIdNum + 1).toString().padStart(4, '0');
-        compSheet.appendRow([nextCompId, companyName, "", "", "", "案件登録により自動追加"]);
       }
     }
-  }
 
-  const lastRow = sheet.getLastRow();
-  let lastIdNum = 0;
-  if (lastRow > 1) {
-    const idVals = sheet.getRange(1, 1, lastRow, 1).getValues();
-    for (let i = 1; i < idVals.length; i++) {
-      let idVal = String(idVals[i][0]).trim();
-      let match = idVal.match(/\d+/);
-      if (match) {
+    // --- 書き込み行の特定ロジック ---
+    const dataRange = sheet.getDataRange();
+    const aVals = dataRange.getValues().map(r => r[0]); 
+    let lastIdNum = 0;
+    let targetRow = -1;
+
+    for (let i = 1; i < aVals.length; i++) { 
+      let val = String(aVals[i]).trim();
+      let match = val.match(/\d+/);
+      if (val.startsWith("JOB-") && match) {
         let num = parseInt(match[0], 10);
         if (num > lastIdNum) lastIdNum = num;
       }
+      if (val === "" && targetRow === -1) {
+        targetRow = i + 1;
+      }
     }
+
+    if (targetRow === -1) {
+      targetRow = sheet.getLastRow() + 1;
+      sheet.insertRowAfter(sheet.getLastRow());
+    } else {
+      sheet.insertRowBefore(targetRow);
+    }
+
+    const nextId = "JOB-" + (lastIdNum + 1).toString().padStart(4, '0');
+    
+    // --- 日付処理 (案B: 純粋なDateオブジェクトを作成) ---
+    const now = new Date();
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate()); // 時間を00:00:00に固定
+    
+    let interviewDate = '';
+    if (formData.interviewDate) {
+      const parts = formData.interviewDate.split('-'); // "yyyy-mm-dd"
+      if (parts.length === 3) {
+        interviewDate = new Date(parts[0], parts[1] - 1, parts[2]);
+      }
+    }
+    
+    const candidatesArr = Array.isArray(formData.candidates) ? formData.candidates : [];
+    const fileUrlsArr = Array.isArray(formData.relatedFiles) ? formData.relatedFiles : [];
+    const fileUrlsText = fileUrlsArr.join('\n');
+
+    const rowData = [
+      nextId,                           
+      '未着手',                          
+      today,                            // Dateオブジェクト
+      companyName,                      
+      formData.skill || '',             
+      candidatesArr.join('\n'),         
+      interviewDate,                    // Dateオブジェクト
+      '',                               
+      '',                               
+      formData.memo || ''               
+    ];
+
+    // データを書き込む
+    sheet.getRange(targetRow, 1, 1, rowData.length).setValues([rowData]);
+    
+    try {
+      if (fileUrlsText) {
+        convertToSmartChips(sheet, targetRow, 9, fileUrlsText);
+      }
+      // 書き込み完了後に見た目だけを装飾
+      sheet.getRange(targetRow, 3).setNumberFormat('yyyy"年"m"月"d"日"');
+      sheet.getRange(targetRow, 7).setNumberFormat('yyyy"年"m"月"d"日"');
+    } catch(ex) {
+      console.warn("装飾処理でエラー: " + ex.message);
+    }
+
+    return `案件登録が完了しました: ${nextId}`;
+
+  } catch(e) {
+    throw new Error("登録に失敗しました: " + e.message);
   }
-
-  const targetRow = lastRow + 1;
-  const nextId = "JOB-" + (lastIdNum + 1).toString().padStart(4, '0');
-  const todayStr = Utilities.formatDate(new Date(), "JST", "yyyy/MM/dd");
-  
-  const candidatesArr = Array.isArray(formData.candidates) ? formData.candidates : [];
-  const fileUrlsArr = Array.isArray(formData.relatedFiles) ? formData.relatedFiles : [];
-  const fileUrlsText = fileUrlsArr.join('\n');
-
-  // I列削除に伴い、10項目に調整
-  const rowData = [
-    nextId,                           // 1: A 案件ID
-    '未着手',                          // 2: B ステータス
-    todayStr,                         // 3: C 案件登録日
-    companyName,                      // 4: D 事業者名
-    formData.skill || '',             // 5: E 技能分野
-    candidatesArr.join('\n'),         // 6: F 候補者名
-    formData.interviewDate || '',     // 7: G 面接日
-    '',                               // 8: H 採用者名
-    '',                               // 9: I 関連ファイル (後でスマートチップ化)
-    formData.memo || ''               // 10: J 備考・メモ
-  ];
-
-  sheet.getRange(targetRow, 1, 1, rowData.length).setValues([rowData]);
-  
-  // 第3引数を 10 から 9（I列）に変更
-  if (fileUrlsText) {
-    convertToSmartChips(sheet, targetRow, 9, fileUrlsText);
-  }
-  
-  sheet.getRange(targetRow, 3).setNumberFormat('yyyy/MM/dd');
-
-  return `案件登録が完了しました: ${nextId}`;
 }
 
 /**
  * 案件詳細の取得
  */
 function getJobDetails(jobId) {
-  const sheet = getMasterSheet('案件管理');
-  if (!sheet) return null;
-  
-  const lastRow = sheet.getLastRow();
-  if (lastRow < 2) return null;
+  try {
+    const sheet = getMasterSheet('案件管理');
+    if (!sheet) return null;
+    
+    const lastRow = sheet.getLastRow();
+    if (lastRow < 2) return null;
 
-  // 10列分を取得
-  const data = sheet.getRange(1, 1, lastRow, 10).getValues();
-  const searchId = String(jobId).trim().toUpperCase();
+    const data = sheet.getRange(1, 1, lastRow, 10).getValues();
+    const searchId = String(jobId).trim().toUpperCase();
 
-  for (let i = 1; i < data.length; i++) {
-    if (String(data[i][0]).trim().toUpperCase() === searchId) {
-      let rawUrls = "";
-      try {
-        // 第9列（I列）から取得
-        const richText = sheet.getRange(i + 1, 9).getRichTextValue();
-        if (richText) {
-          const runs = richText.getRuns();
-          const urlArray = [];
-          runs.forEach(run => {
-            const url = run.getLinkUrl();
-            if (url) urlArray.push(url);
-          });
-          rawUrls = urlArray.join('\n');
+    for (let i = 1; i < data.length; i++) {
+      if (String(data[i][0]).trim().toUpperCase() === searchId) {
+        let rawUrls = "";
+        try {
+          const richText = sheet.getRange(i + 1, 9).getRichTextValue();
+          if (richText) {
+            const runs = richText.getRuns();
+            const urlArray = [];
+            runs.forEach(run => {
+              const url = run.getLinkUrl();
+              if (url) urlArray.push(url);
+            });
+            rawUrls = urlArray.join('\n');
+          }
+        } catch(e) {
+          console.error("URL抽出エラー: " + e);
         }
-      } catch(e) {
-        console.error("URL抽出エラー: " + e);
+        
+        if (!rawUrls) rawUrls = String(data[i][8] || ""); 
+
+        // 取得時に確実に「yyyy-MM-dd」文字列に変換する
+        const toIsoDate = (val) => {
+          if (val instanceof Date) return Utilities.formatDate(val, "JST", "yyyy-MM-dd");
+          if (typeof val === 'string' && val) {
+            // 文字列が混在している場合の置換
+            return val.replace(/[年月]/g, '-').replace(/日/g, '').replace(/\//g, '-');
+          }
+          return '';
+        };
+
+        return {
+          row: i + 1,
+          id: data[i][0],
+          status: data[i][1],
+          date: toIsoDate(data[i][2]),
+          company: data[i][3],
+          skill: data[i][4],
+          candidates: String(data[i][5] || ""),
+          interviewDate: toIsoDate(data[i][6]),
+          hireNames: data[i][7],
+          relatedFile: rawUrls, 
+          memo: data[i][9]
+        };
       }
-      
-      // インデックスを 9(旧J) から 8(新I) に変更
-      if (!rawUrls) rawUrls = String(data[i][8] || ""); 
-
-      let ivDate = data[i][6];
-      if (ivDate instanceof Date) ivDate = Utilities.formatDate(ivDate, "JST", "yyyy-MM-dd");
-      let rDate = data[i][2];
-      if (rDate instanceof Date) rDate = Utilities.formatDate(rDate, "JST", "yyyy-MM-dd");
-
-      return {
-        row: i + 1,
-        id: data[i][0],
-        status: data[i][1],
-        date: rDate,
-        company: data[i][3],
-        skill: data[i][4],
-        candidates: String(data[i][5] || ""),
-        interviewDate: ivDate,
-        hireNames: data[i][7],
-        relatedFile: rawUrls, 
-        memo: data[i][9] // 11(旧K) から 10(新J) に変更
-      };
     }
+    return null;
+  } catch(e) {
+    throw new Error(e.message);
   }
-  return null;
 }
 
 /**
  * 案件情報の更新
  */
 function updateJob(formData) {
-  const sheet = getMasterSheet('案件管理');
-  const row = Number(formData.row);
-  if (!row || row < 2) return "エラー：無効な行番号です。";
+  try {
+    const sheet = getMasterSheet('案件管理');
+    const row = Number(formData.row);
+    if (!row || row < 2) throw new Error("無効な行番号です。");
 
-  const candidatesArr = Array.isArray(formData.candidates) ? formData.candidates : [];
-  const fileUrlsArr = Array.isArray(formData.relatedFiles) ? formData.relatedFiles : [];
-  const fileUrlsText = fileUrlsArr.join('\n');
-  
-  sheet.getRange(row, 2).setValue(formData.status || '未着手');
-  sheet.getRange(row, 4).setValue(formData.company || '');
-  sheet.getRange(row, 5).setValue(formData.skill || '');
-  sheet.getRange(row, 6).setValue(candidatesArr.join('\n'));
-  sheet.getRange(row, 7).setValue(formData.interviewDate || '');
-  
-  // 備考の列を 11(旧K) から 10(新J) に変更
-  sheet.getRange(row, 10).setValue(formData.memo || '');
-  
-  // 関連ファイルの列を 10(旧J) から 9(新I) に変更
-  convertToSmartChips(sheet, row, 9, fileUrlsText);
-  
-  return "案件情報を更新しました。";
+    const candidatesArr = Array.isArray(formData.candidates) ? formData.candidates : [];
+    const fileUrlsArr = Array.isArray(formData.relatedFiles) ? formData.relatedFiles : [];
+    const fileUrlsText = fileUrlsArr.join('\n');
+    
+    sheet.getRange(row, 2).setValue(formData.status || '未着手');
+    sheet.getRange(row, 4).setValue(formData.company || '');
+    sheet.getRange(row, 5).setValue(formData.skill || '');
+    sheet.getRange(row, 6).setValue(candidatesArr.join('\n'));
+    
+    // 更新時もDateオブジェクトに変換して保存
+    let interviewDate = '';
+    if (formData.interviewDate) {
+      const parts = formData.interviewDate.split('-');
+      if (parts.length === 3) {
+        interviewDate = new Date(parts[0], parts[1] - 1, parts[2]);
+      }
+    }
+    
+    const cell = sheet.getRange(row, 7);
+    cell.setValue(interviewDate).setNumberFormat('yyyy"年"m"月"d"日"');
+    
+    sheet.getRange(row, 10).setValue(formData.memo || '');
+    
+    try {
+      convertToSmartChips(sheet, row, 9, fileUrlsText);
+    } catch(ex) {
+      console.warn("スマートチップ変換エラー: " + ex.message);
+    }
+    
+    return "案件情報を更新しました。";
+  } catch(e) {
+    throw new Error(e.message);
+  }
 }
 
 /**
  * 案件の削除
  */
 function deleteJobRow(jobId) {
-  const sheet = getMasterSheet('案件管理');
-  if (!sheet) return "エラー：シートが見つかりません。";
-  
-  const data = sheet.getDataRange().getValues();
-  for (let i = data.length - 1; i >= 1; i--) {
-    if (String(data[i][0]).trim() === String(jobId).trim()) {
-      sheet.deleteRow(i + 1);
-      return "案件を削除しました。";
+  try {
+    const sheet = getMasterSheet('案件管理');
+    if (!sheet) throw new Error("シートが見つかりません。");
+    
+    const data = sheet.getDataRange().getValues();
+    for (let i = data.length - 1; i >= 1; i--) {
+      if (String(data[i][0]).trim() === String(jobId).trim()) {
+        sheet.deleteRow(i + 1);
+        return "案件を削除しました。";
+      }
     }
+    throw new Error("対象の案件が見つかりませんでした。");
+  } catch(e) {
+    throw new Error(e.message);
   }
-  return "エラー：対象の案件が見つかりませんでした。";
 }
 
 /**
  * 案件に紐づく候補者情報のリスト取得
  */
 function getJobCandidates(jobId) {
-  const details = getJobDetails(jobId);
-  if (!details || !details.candidates) return [];
+  try {
+    const details = getJobDetails(jobId);
+    if (!details || !details.candidates) return [];
 
-  const candDict = getCandidateDict(); 
-  const ids = details.candidates.split(/\r?\n/).filter(id => id.trim());
+    const candDict = getCandidateDict(); 
+    const ids = details.candidates.split(/\r?\n/).filter(id => id.trim());
 
-  return ids.map(id => {
-    const cleanId = id.split('-').slice(0, 2).join('-').trim();
-    return { 
-      id: cleanId, 
-      display: candDict[cleanId] ? `${cleanId} (${candDict[cleanId]})` : id 
-    };
-  }).filter(c => c.id);
+    return ids.map(id => {
+      const cleanId = id.split('-').slice(0, 2).join('-').trim();
+      return { 
+        id: cleanId, 
+        display: candDict[cleanId] ? `${cleanId} (${candDict[cleanId]})` : id 
+      };
+    }).filter(c => c.id);
+  } catch(e) {
+    throw new Error(e.message);
+  }
 }
 
 /**
  * 採用登録
  */
 function registerHire(jobId, hiredIds) {
-  const sheet = getMasterSheet('案件管理');
-  const mSheet = getMasterSheet('登録者マスタ');
-  if (!sheet || !mSheet) return "エラー：シートへのアクセスに失敗しました。";
+  try {
+    const sheet = getMasterSheet('案件管理');
+    const mSheet = getMasterSheet('登録者マスタ');
+    if (!sheet || !mSheet) throw new Error("シートへのアクセスに失敗しました。");
 
-  const mCol = getMasterColumnMap(mSheet);
-  const data = sheet.getDataRange().getValues();
-  const mData = mSheet.getDataRange().getValues();
-  
-  let companyName = "";
-  let targetJobRow = -1;
-
-  for (let i = 1; i < data.length; i++) {
-    if (String(data[i][0]).trim() === String(jobId).trim()) {
-      companyName = data[i][3];
-      targetJobRow = i + 1;
-      break;
-    }
-  }
-  if (!companyName) return "エラー：案件が見つかりません。";
-
-  const hiredNames = [];
-  const candDict = getCandidateDict();
-
-  hiredIds.forEach(id => {
-    const name = candDict[id] || "";
-    const displayVal = name ? `${id}-${name}` : id;
-    hiredNames.push(displayVal);
+    const mCol = getMasterColumnMap(mSheet);
+    const data = sheet.getDataRange().getValues();
+    const mData = mSheet.getDataRange().getValues();
     
-    for (let j = 1; j < mData.length; j++) {
-      if (String(mData[j][0]).trim() === String(id).trim()) {
-        if (mCol['ステータス']) mSheet.getRange(j + 1, mCol['ステータス']).setValue('採用');
-        if (mCol['採用事業者']) mSheet.getRange(j + 1, mCol['採用事業者']).setValue(companyName);
+    let companyName = "";
+    let targetJobRow = -1;
+
+    for (let i = 1; i < data.length; i++) {
+      if (String(data[i][0]).trim() === String(jobId).trim()) {
+        companyName = data[i][3];
+        targetJobRow = i + 1;
         break;
       }
     }
-  });
+    if (!companyName) throw new Error("案件が見つかりません。");
 
-  sheet.getRange(targetJobRow, 8).setValue(hiredNames.join('\n'));
-  sheet.getRange(targetJobRow, 2).setValue('終了');
+    const hiredNames = [];
+    const candDict = getCandidateDict();
 
-  return `${hiredIds.length} 名の採用登録を完了しました。案件ステータスを「終了」にしました。`;
+    hiredIds.forEach(id => {
+      const name = candDict[id] || "";
+      const displayVal = name ? `${id}-${name}` : id;
+      hiredNames.push(displayVal);
+      
+      for (let j = 1; j < mData.length; j++) {
+        if (String(mData[j][0]).trim() === String(id).trim()) {
+          if (mCol['ステータス']) mSheet.getRange(j + 1, mCol['ステータス']).setValue('採用');
+          if (mCol['採用事業者']) mSheet.getRange(j + 1, mCol['採用事業者']).setValue(companyName);
+          break;
+        }
+      }
+    });
+
+    sheet.getRange(targetJobRow, 8).setValue(hiredNames.join('\n'));
+    sheet.getRange(targetJobRow, 2).setValue('終了');
+
+    return `${hiredIds.length} 名の採用登録を完了しました。案件ステータスを「終了」にしました。`;
+  } catch(e) {
+    throw new Error(e.message);
+  }
 }
